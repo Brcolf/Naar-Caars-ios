@@ -16,10 +16,13 @@ struct RideDetailView: View {
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
+    @State private var communityContext = CommunityContext.shared
     @State private var guestPromptReason: GuestRestrictionReason?
     @State private var showEditRide = false
     @State private var showDeleteAlert = false
     @State private var showClaimSheet = false
+    /// I Can Help on an example request: the plain example message instead of the claim sheet.
+    @State private var showExampleNotice = false
     @State private var showUnclaimSheet = false
     @State private var showCompleteSheet = false
     @State private var showReviewSheet = false
@@ -50,7 +53,16 @@ struct RideDetailView: View {
     @State private var showMapsChoiceDialog = false
     @State private var showReportSheet = false
     @State private var hasReported = false
+    /// Set once the first load has returned.
+    @State private var hasFinishedFirstLoad = false
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// A load returned with no ride, no error and no "unavailable" answer (a request cancelled after
+    /// the ride went away while this screen stayed open). Nothing but the title drew; now the
+    /// unavailable state does.
+    private var loadEndedWithNothing: Bool {
+        hasFinishedFirstLoad && !viewModel.isLoading && viewModel.error == nil
+    }
 
     var body: some View {
         ScrollViewReader { proxy in
@@ -58,7 +70,7 @@ struct RideDetailView: View {
                 LazyVStack(alignment: .leading, spacing: Constants.Spacing.lg) {
                     if let ride = viewModel.ride {
                         rideDetails(ride: ride)
-                    } else if viewModel.isUnavailable {
+                    } else if viewModel.isUnavailable || loadEndedWithNothing {
                         // Deleted, or hidden by moderators. Reached from a stale card, an old
                         // notification or a link; there is nothing to retry, only a way back.
                         EmptyStateView(
@@ -159,6 +171,7 @@ struct RideDetailView: View {
         .refreshable { await viewModel.loadRide(id: rideId) }
         .task {
             await viewModel.loadRide(id: rideId)
+            hasFinishedFirstLoad = true
             if !(viewModel.ride?.isModerationHidden ?? false) {
                 viewModel.checkCalendarOffer()
             }
@@ -211,6 +224,12 @@ struct RideDetailView: View {
         } message: {
             Text("calendar_offer_ride_message".localized)
         }
+        .alert("request_example_title".localized, isPresented: $showExampleNotice) {
+            Button("common_ok".localized, role: .cancel) {}
+                .accessibilityIdentifier("request.exampleNotice")
+        } message: {
+            Text("request_example_refused".localized)
+        }
         .sheet(isPresented: $showClaimSheet, onDismiss: {
             // Check calendar offer after sheet is fully dismissed so the alert can present
             if claimViewModel.lastClaimSucceeded {
@@ -223,7 +242,7 @@ struct RideDetailView: View {
                     requestType: "ride",
                     requestTitle: "\(ride.pickup) → \(ride.destination)",
                     onConfirm: {
-                        try await claimViewModel.claim(requestType: "ride", requestId: ride.id)
+                        try await claimViewModel.claim(requestType: "ride", requestId: ride.id, isExample: ride.isExample)
                         await viewModel.loadRide(id: rideId)
                         claimViewModel.lastClaimSucceeded = true
                     }
@@ -314,6 +333,7 @@ struct RideDetailView: View {
                 UserSearchView(
                     selectedUserIds: $selectedUserIds,
                     excludeUserIds: getExistingParticipantIds(ride: ride),
+                    communityId: ride.communityId,
                     onDismiss: {
                         // Copy the selection before it is cleared below; the task runs after
                         // this closure returns and used to read an already-empty set.
@@ -357,18 +377,29 @@ struct RideDetailView: View {
                 HStack(alignment: .center, spacing: Constants.Spacing.md) {
                     if let poster = ride.poster {
                         UserAvatarLink(profile: poster, size: 60)
+                    } else {
+                        AvatarView(imageUrl: nil, name: "community_former_member".localized, size: 60)
                     }
                     
                     VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                        if ride.isExample {
+                            NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsPrimary, size: .large)
+                                .accessibilityLabel("request_example_accessibility".localized)
+                                .accessibilityIdentifier("request.exampleChip")
+                        }
+
                         NaarsChip(text: ride.statusDisplayText, tint: ride.status.color, size: .large)
                             .id(RequestDetailAnchor.statusBadge.anchorId(for: .ride))
                             .requestHighlight(highlightedAnchor == .statusBadge)
-                        
-                        if let poster = ride.poster {
-                            Text("ride_detail_requested_by".localized(with: poster.name))
-                                .font(.naarsCaption)
-                                .foregroundColor(.secondary)
+
+                        if let communityText = communityContext.chipText(for: ride.communityId, respectingScope: true) {
+                            NaarsChip(text: communityText, tint: nil, size: .large)
+                                .accessibilityLabel("community_chip_accessibility".localized(with: communityText))
                         }
+                        
+                        Text("ride_detail_requested_by".localized(with: ride.poster?.name ?? "community_former_member".localized))
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
                     }
                     
                     Spacer()
@@ -633,6 +664,25 @@ struct RideDetailView: View {
                                 }
                             }
                             
+                            Spacer()
+                        }
+                    }
+                    .cardStyle()
+                    .id(RequestDetailAnchor.claimerCard.anchorId(for: .ride))
+                    .requestHighlight(highlightedAnchor == .claimerCard)
+                } else if ride.claimedBy != nil {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("ride_detail_claimed_by".localized)
+                            .font(.naarsTitle3)
+                            .accessibilityAddTraits(.isHeader)
+
+                        HStack(spacing: 12) {
+                            AvatarView(imageUrl: nil, name: "community_former_member".localized, size: 50)
+
+                            Text("community_former_member".localized)
+                                .font(.naarsHeadline)
+                                .foregroundColor(.secondary)
+
                             Spacer()
                         }
                     }
@@ -1068,6 +1118,12 @@ struct RideDetailView: View {
                     action: {
                         switch buttonState {
                         case .canClaim:
+                            // An example is never claimed (the server refuses it too); say so
+                            // before the phone check and the claim sheet.
+                            if ride.isExample {
+                                showExampleNotice = true
+                                return
+                            }
                             Task {
                                 let canClaim = await claimViewModel.checkCanClaim()
                                 if canClaim {

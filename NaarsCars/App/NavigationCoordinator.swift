@@ -16,12 +16,16 @@ enum NotificationIntent: Equatable {
     case openConversation(conversationId: UUID, scrollTarget: NavigationCoordinator.ConversationScrollTarget?)
     case openRide(rideId: UUID, anchor: RequestNotificationTarget?)
     case openFavor(favorId: UUID, anchor: RequestNotificationTarget?)
-    case openTownHallPost(postId: UUID, mode: NavigationCoordinator.TownHallNavigationTarget.Mode)
+    case openTownHallPost(postId: UUID, mode: NavigationCoordinator.TownHallNavigationTarget.Mode, communityId: UUID? = nil)
     case openAnnouncements(scrollToNotificationId: UUID?)
     case openProfile(userId: UUID)
     case openAdminPanel
     case openPendingUsers
+    case openPendingMembers(communityId: UUID)
     case openAdminReports
+    case openCommunityReports(communityId: UUID)
+    case openMyCommunities
+    case openCommunityMembers(communityId: UUID)
     case openDashboard
 }
 
@@ -85,8 +89,10 @@ final class NavigationCoordinator {
     enum Tab: Int {
         case requests = 0
         case messages = 1
-        case community = 2  // Town Hall + Leaderboard
+        case townHall = 2  // Town Hall + Leaderboard (CommunityTabView)
         case profile = 3
+        /// The trailing search-role tab: My communities and the community admin screens.
+        case explore = 4
     }
 
     struct ConversationScrollTarget: Equatable {
@@ -102,6 +108,8 @@ final class NavigationCoordinator {
 
         let postId: UUID
         let mode: Mode
+        /// The post's community when the push or bell row carried one; nil means "look it up".
+        var communityId: UUID? = nil
     }
 
     struct AnnouncementsNavigationTarget: Identifiable, Equatable {
@@ -159,6 +167,17 @@ final class NavigationCoordinator {
         )
     }
 
+    /// A Universal Link: the routing table of `navigate(to:)` without the "open link?" confirmation
+    /// (a tapped link is an explicit user action, like a notification tap). An unrecognized URL
+    /// (`.unknown`) leaves navigation where it was.
+    func applyExternalDeepLink(_ deepLink: DeepLink) {
+        if case .unknown = deepLink {
+            AppLogger.info("navigation", "Ignoring an unrecognized incoming link")
+            return
+        }
+        applyDeepLink(deepLink)
+    }
+
     private func applyDeepLink(
         _ deepLink: DeepLink,
         requestAnchor: RequestNotificationTarget? = nil,
@@ -178,13 +197,13 @@ final class NavigationCoordinator {
             pendingIntent = .conversation(conversationId, scrollTarget: conversationScrollTarget)
             
         case .townHall:
-            selectedTab = .community
+            selectedTab = .townHall
             
-        case .townHallPostComments(let postId):
-            pendingIntent = .townHallPost(postId, mode: .openComments)
+        case .townHallPostComments(let postId, let communityId):
+            pendingIntent = .townHallPost(postId, mode: .openComments, communityId: communityId)
 
-        case .townHallPostHighlight(let postId):
-            pendingIntent = .townHallPost(postId, mode: .highlightPost)
+        case .townHallPostHighlight(let postId, let communityId):
+            pendingIntent = .townHallPost(postId, mode: .highlightPost, communityId: communityId)
             
         case .profile(let userId):
             pendingIntent = .profile(userId)
@@ -195,8 +214,20 @@ final class NavigationCoordinator {
         case .pendingUsers:
             pendingIntent = .pendingUsers
 
+        case .pendingMembers(let communityId):
+            pendingIntent = .pendingMembers(communityId)
+
         case .adminReports:
             pendingIntent = .adminReports
+
+        case .communityReports(let communityId):
+            pendingIntent = .communityReports(communityId)
+
+        case .myCommunities:
+            pendingIntent = .myCommunities
+
+        case .communityMembers(let communityId):
+            pendingIntent = .communityMembers(communityId)
 
         case .notifications:
             pendingIntent = .notifications
@@ -205,13 +236,19 @@ final class NavigationCoordinator {
             pendingIntent = .announcements(scrollToNotificationId: notificationId)
             
         case .enterApp:
-            pendingIntent = .dashboard
+            // Reached only from `AppLaunchManager.handleEnterAppIntent` while authenticated
+            // (an approval into a further community); every other state relaunches.
+            pendingIntent = .myCommunities
+
+        case .joinCommunity:
+            // The code itself is saved in PendingInviteStore by whoever received the link.
+            pendingIntent = .joinCommunity
             
         case .unknown:
             pendingIntent = .dashboard
         }
         
-        AppLogger.info("navigation", "Navigating to: \(deepLink)")
+        AppLogger.info("navigation", "Navigating to: \(deepLink.logDescription)")
     }
 
     private func shouldConfirmDeepLink(for deepLink: DeepLink) -> Bool {
@@ -245,21 +282,39 @@ final class NavigationCoordinator {
                 return currentId == id
             }
             return false
-        case .townHallPostComments(let id), .townHallPostHighlight(let id):
-            if case .townHallPost(let postId, _) = pendingIntent {
+        case .townHallPostComments(let id, _), .townHallPostHighlight(let id, _):
+            if case .townHallPost(let postId, _, _) = pendingIntent {
                 return postId == id
             }
             return false
         case .townHall:
-            return selectedTab == .community
+            return selectedTab == .townHall
         case .adminPanel:
             if case .adminPanel = pendingIntent { return true }
             return false
         case .pendingUsers:
             if case .pendingUsers = pendingIntent { return true }
             return false
+        case .pendingMembers(let id):
+            if case .pendingMembers(let currentId) = pendingIntent {
+                return currentId == id
+            }
+            return false
         case .adminReports:
             if case .adminReports = pendingIntent { return true }
+            return false
+        case .communityReports(let id):
+            if case .communityReports(let currentId) = pendingIntent {
+                return currentId == id
+            }
+            return false
+        case .myCommunities:
+            if case .myCommunities = pendingIntent { return true }
+            return false
+        case .communityMembers(let id):
+            if case .communityMembers(let currentId) = pendingIntent {
+                return currentId == id
+            }
             return false
         case .notifications:
             if case .notifications = pendingIntent { return true }
@@ -267,9 +322,15 @@ final class NavigationCoordinator {
         case .announcements:
             if case .announcements = pendingIntent { return true }
             return false
-        case .dashboard, .enterApp:
+        case .dashboard:
             if case .dashboard = pendingIntent { return true }
             return selectedTab == .requests
+        case .enterApp:
+            if case .myCommunities = pendingIntent { return true }
+            return false
+        case .joinCommunity:
+            if case .joinCommunity = pendingIntent { return true }
+            return false
         case .unknown:
             return false
         }
@@ -316,12 +377,12 @@ final class NavigationCoordinator {
         case .openFavor(let favorId, let anchor):
             pendingIntent = .favor(favorId, anchor: anchor)
             selectedTab = .requests
-        case .openTownHallPost(let postId, let mode):
-            pendingIntent = .townHallPost(postId, mode: mode)
-            selectedTab = .community
+        case .openTownHallPost(let postId, let mode, let communityId):
+            pendingIntent = .townHallPost(postId, mode: mode, communityId: communityId)
+            selectedTab = .townHall
         case .openAnnouncements(let scrollToNotificationId):
             pendingIntent = .announcements(scrollToNotificationId: scrollToNotificationId)
-            selectedTab = .community
+            selectedTab = .townHall
         case .openProfile(let userId):
             pendingIntent = .profile(userId)
             selectedTab = .profile
@@ -331,9 +392,21 @@ final class NavigationCoordinator {
         case .openPendingUsers:
             pendingIntent = .pendingUsers
             selectedTab = .profile
+        case .openPendingMembers(let communityId):
+            pendingIntent = .pendingMembers(communityId)
+            selectedTab = .explore
         case .openAdminReports:
             pendingIntent = .adminReports
             selectedTab = .profile
+        case .openCommunityReports(let communityId):
+            pendingIntent = .communityReports(communityId)
+            selectedTab = .explore
+        case .openMyCommunities:
+            pendingIntent = .myCommunities
+            selectedTab = .explore
+        case .openCommunityMembers(let communityId):
+            pendingIntent = .communityMembers(communityId)
+            selectedTab = .explore
         case .openDashboard:
             pendingIntent = .dashboard
             selectedTab = .requests
@@ -343,25 +416,34 @@ final class NavigationCoordinator {
     // MARK: - Guest Gating
 
     /// Returns true if this intent requires an authenticated user.
-    /// Guest-safe intents (ride, favor, townHallPost, profile, dashboard, requestListScroll)
-    /// pass through. Admin-only intents (adminPanel, pendingUsers, adminReports) are
-    /// treated as silently ignorable — guests should never encounter them via deep link.
+    /// Guest-safe intents (ride, favor, townHallPost, profile, dashboard, requestListScroll, explore)
+    /// pass through. Admin-only intents (adminPanel, pendingUsers, pendingMembers, adminReports, communityReports,
+    /// communityMembers) are treated as silently ignorable — guests should never encounter them via deep link.
     func intentRequiresAuth(_ intent: NavigationIntent) -> Bool {
         switch intent {
-        case .ride, .favor, .requestListScroll, .townHallPost, .profile, .dashboard:
+        case .ride, .favor, .requestListScroll, .townHallPost, .profile, .dashboard, .explore:
             return false
-        case .conversation, .announcements, .notifications:
+        case .conversation, .announcements, .notifications, .myCommunities, .joinCommunity:
             return true
-        case .adminPanel, .pendingUsers, .adminReports:
+        case .adminPanel, .pendingUsers, .pendingMembers, .adminReports, .communityReports, .communityMembers:
             // Admin-only: silently ignore rather than prompt
             return false
         }
     }
 
+    /// The guest prompt for an auth-required intent: `.joinCommunity` for `.joinCommunity`,
+    /// `.deepLinkSignIn` otherwise.
+    func guestPromptReason(for intent: NavigationIntent) -> GuestRestrictionReason {
+        if case .joinCommunity = intent {
+            return .joinCommunity
+        }
+        return .deepLinkSignIn
+    }
+
     /// Returns true if the intent is admin-only and should be silently dropped for guests.
     func intentIsAdminOnly(_ intent: NavigationIntent) -> Bool {
         switch intent {
-        case .adminPanel, .pendingUsers, .adminReports:
+        case .adminPanel, .pendingUsers, .pendingMembers, .adminReports, .communityReports, .communityMembers:
             return true
         default:
             return false
@@ -396,11 +478,11 @@ final class NavigationCoordinator {
     }
 
     func consumeTownHallNavigationTarget() -> TownHallNavigationTarget? {
-        guard case .townHallPost(let postId, let mode) = pendingIntent else {
+        guard case .townHallPost(let postId, let mode, let communityId) = pendingIntent else {
             return nil
         }
         pendingIntent = nil
-        return .init(postId: postId, mode: mode)
+        return .init(postId: postId, mode: mode, communityId: communityId)
     }
 
     func consumeAnnouncementsNavigationTarget() -> AnnouncementsNavigationTarget? {

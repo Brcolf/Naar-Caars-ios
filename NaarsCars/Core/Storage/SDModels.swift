@@ -170,8 +170,16 @@ final class SDRide {
     // Relationships (stored as simple UUIDs for now to avoid complex Profile sync)
     var participantIds: [UUID] = []
     var qaCount: Int = 0
+
+    /// Community of the row. Nil for rows cached by a build without the column
+    /// (unknown: shown, rewritten by the next sync).
+    var communityId: UUID?
+
+    /// Example content of the example community (`is_example`). Defaulted, so a store written
+    /// by an earlier build migrates lightweight; the next sync rewrites it.
+    var isExample: Bool = false
     
-    init(id: UUID, userId: UUID, type: String = "request", date: Date, time: String, timezone: String = "America/Los_Angeles", pickup: String, destination: String, seats: Int = 1, notes: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, estimatedCost: Double? = nil, flightNormalized: String? = nil, hiddenAt: Date? = nil, hiddenBy: UUID? = nil, hiddenReason: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
+    init(id: UUID, userId: UUID, type: String = "request", date: Date, time: String, timezone: String = "America/Los_Angeles", pickup: String, destination: String, seats: Int = 1, notes: String? = nil, gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, estimatedCost: Double? = nil, flightNormalized: String? = nil, hiddenAt: Date? = nil, hiddenBy: UUID? = nil, hiddenReason: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0, communityId: UUID? = nil, isExample: Bool = false) {
         self.id = id
         self.userId = userId
         self.type = type
@@ -201,6 +209,8 @@ final class SDRide {
         self.claimerAvatarUrl = claimerAvatarUrl
         self.participantIds = participantIds
         self.qaCount = qaCount
+        self.communityId = communityId
+        self.isExample = isExample
     }
 }
 
@@ -237,8 +247,16 @@ final class SDFavor {
     // Relationships
     var participantIds: [UUID] = []
     var qaCount: Int = 0
+
+    /// Community of the row. Nil for rows cached by a build without the column
+    /// (unknown: shown, rewritten by the next sync).
+    var communityId: UUID?
+
+    /// Example content of the example community (`is_example`). Defaulted, so a store written
+    /// by an earlier build migrates lightweight; the next sync rewrites it.
+    var isExample: Bool = false
     
-    init(id: UUID, userId: UUID, title: String, favorDescription: String? = nil, location: String, duration: String = "not_sure", requirements: String? = nil, date: Date, time: String? = nil, timezone: String = "America/Los_Angeles", gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, hiddenAt: Date? = nil, hiddenBy: UUID? = nil, hiddenReason: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0) {
+    init(id: UUID, userId: UUID, title: String, favorDescription: String? = nil, location: String, duration: String = "not_sure", requirements: String? = nil, date: Date, time: String? = nil, timezone: String = "America/Los_Angeles", gift: String? = nil, status: String = "open", claimedBy: UUID? = nil, reviewed: Bool = false, reviewSkipped: Bool? = nil, reviewSkippedAt: Date? = nil, hiddenAt: Date? = nil, hiddenBy: UUID? = nil, hiddenReason: String? = nil, createdAt: Date = Date(), updatedAt: Date = Date(), posterName: String? = nil, posterAvatarUrl: String? = nil, claimerName: String? = nil, claimerAvatarUrl: String? = nil, participantIds: [UUID] = [], qaCount: Int = 0, communityId: UUID? = nil, isExample: Bool = false) {
         self.id = id
         self.userId = userId
         self.title = title
@@ -266,6 +284,8 @@ final class SDFavor {
         self.claimerAvatarUrl = claimerAvatarUrl
         self.participantIds = participantIds
         self.qaCount = qaCount
+        self.communityId = communityId
+        self.isExample = isExample
     }
 }
 
@@ -287,8 +307,12 @@ final class SDNotification {
     var reviewId: UUID?
     var townHallPostId: UUID?
     var sourceUserId: UUID?
+
+    /// Community of the row. Nil for rows cached by a build without the column
+    /// (unknown: shown, rewritten by the next sync).
+    var communityId: UUID?
     
-    init(id: UUID, userId: UUID, type: String, title: String, body: String? = nil, read: Bool = false, pinned: Bool = false, createdAt: Date = Date(), rideId: UUID? = nil, favorId: UUID? = nil, conversationId: UUID? = nil, reviewId: UUID? = nil, townHallPostId: UUID? = nil, sourceUserId: UUID? = nil) {
+    init(id: UUID, userId: UUID, type: String, title: String, body: String? = nil, read: Bool = false, pinned: Bool = false, createdAt: Date = Date(), rideId: UUID? = nil, favorId: UUID? = nil, conversationId: UUID? = nil, reviewId: UUID? = nil, townHallPostId: UUID? = nil, sourceUserId: UUID? = nil, communityId: UUID? = nil) {
         self.id = id
         self.userId = userId
         self.type = type
@@ -303,6 +327,7 @@ final class SDNotification {
         self.reviewId = reviewId
         self.townHallPostId = townHallPostId
         self.sourceUserId = sourceUserId
+        self.communityId = communityId
     }
 }
 
@@ -331,6 +356,10 @@ final class SDTownHallPost {
     // Cached aggregates
     var commentCount: Int
 
+    /// Community of the row. Nil for rows cached by a build without the column
+    /// (unknown: shown, rewritten by the next sync).
+    var communityId: UUID?
+
     init(
         id: UUID,
         userId: UUID,
@@ -347,7 +376,8 @@ final class SDTownHallPost {
         updatedAt: Date = Date(),
         authorName: String? = nil,
         authorAvatarUrl: String? = nil,
-        commentCount: Int = 0
+        commentCount: Int = 0,
+        communityId: UUID? = nil
     ) {
         self.id = id
         self.userId = userId
@@ -365,6 +395,7 @@ final class SDTownHallPost {
         self.authorName = authorName
         self.authorAvatarUrl = authorAvatarUrl
         self.commentCount = commentCount
+        self.communityId = communityId
     }
 }
 

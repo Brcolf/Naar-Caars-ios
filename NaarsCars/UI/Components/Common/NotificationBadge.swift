@@ -54,6 +54,8 @@ struct NaarsChip: View {
     /// `nil` draws a neutral chip: secondary text on the inset fill
     var tint: Color? = Color.naarsPrimary
     var size: Size = .regular
+    /// Strikes the label through, for an option that is switched off (a community left out of Requests)
+    var isStruckThrough = false
 
     var body: some View {
         HStack(spacing: Constants.Spacing.xs) {
@@ -65,6 +67,7 @@ struct NaarsChip: View {
             Text(text)
                 .font(size == .large ? Font.naarsSubheadline : Font.naarsCaption)
                 .fontWeight(.semibold)
+                .strikethrough(isStruckThrough)
                 .lineLimit(1)
         }
         .foregroundColor(tint ?? .secondary)
@@ -99,6 +102,10 @@ struct NaarsChip: View {
             NaarsChip(text: "Review", systemImage: "star.fill", tint: .naarsWarning)
         }
         NaarsChip(text: "Claimed", tint: .naarsPrimary, size: .large)
+        HStack {
+            NaarsChip(text: "Ballard", systemImage: "checkmark", tint: .naarsPrimary)
+            NaarsChip(text: "Fremont", tint: nil, isStruckThrough: true)
+        }
     }
     .padding()
 }

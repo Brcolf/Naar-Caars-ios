@@ -8,10 +8,18 @@
 import SwiftUI
 
 /// Leaderboard view showing community rankings.
-/// Hosted inside CommunityTabView's NavigationStack; it must not open a stack of its own, or it
-/// draws a second navigation bar under the Community one and pushes profiles inside the segment.
+/// Hosted by the community page (`CommunityPageView`, "See all") inside the Explore tab's
+/// NavigationStack, and still by CommunityTabView's until its segment is removed. It must not open
+/// a stack of its own, or it draws a second navigation bar under the host's and pushes profiles
+/// inside the segment.
 struct LeaderboardView: View {
-    @StateObject private var viewModel = LeaderboardViewModel()
+    @State private var communityContext = CommunityContext.shared
+    /// Owned by CommunityTabView, so the cache and the chosen period outlive a segment switch.
+    @ObservedObject var viewModel: LeaderboardViewModel
+    /// The load for the latest community change; a newer change cancels it. The ViewModel ignores
+    /// the outcome of a load whose community is no longer the current one, so a cancelled one
+    /// shows nothing.
+    @State private var communityLoadTask: Task<Void, Never>?
 
     var body: some View {
         VStack(spacing: 0) {
@@ -28,6 +36,10 @@ struct LeaderboardView: View {
                 Task {
                     await viewModel.loadLeaderboard()
                 }
+            }
+            .onChange(of: communityContext.communityTabId) { _, _ in
+                communityLoadTask?.cancel()
+                communityLoadTask = Task { await viewModel.communityDidChange() }
             }
 
             // Content
@@ -120,6 +132,6 @@ struct LeaderboardView: View {
 #Preview {
     // The view relies on its host's NavigationStack (CommunityTabView in the app).
     NavigationStack {
-        LeaderboardView()
+        LeaderboardView(viewModel: LeaderboardViewModel(communityContext: CommunityContext.shared))
     }
 }

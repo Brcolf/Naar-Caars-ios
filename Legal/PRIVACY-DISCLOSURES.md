@@ -2,7 +2,7 @@
 
 ## Document Information
 - **Type**: Privacy Requirements & App Store Compliance
-- **Last Updated**: 2026-10-05 (content review date)
+- **Last Updated**: 2026-10-18 (content review date; reviewed for the multi-community Phase 2 build)
 - **Status**: Maintained; must be re-verified before each release that changes data collection
 
 ---
@@ -29,7 +29,7 @@ The following keys MUST be added to Info.plist with user-friendly descriptions:
 |-----|-------------|----------------|
 | `NSCameraUsageDescription` | "Naar's Cars uses your camera to take profile photos." | Profile photo capture (if camera option offered) |
 | `NSPhotoLibraryUsageDescription` | "Naar's Cars accesses your photos to set your profile picture and share images in messages." | Photo picker for avatar or message images |
-| `NSLocationWhenInUseUsageDescription` | "Naar's Cars shows your location on the map to help you find nearby requests." | Map view (Phase 5) |
+| `NSLocationWhenInUseUsageDescription` | "Naar's Cars uses your location to show where you are on the request map, to start directions from where you are, to share your location in a message when you choose to, and to find communities near you when you tap Use my location in Explore. Your location is not stored." | Request map, directions, sharing a location in a message, and (Release 2) the Use my location button in Explore. The prompt for the Explore button appears only after the person taps it. |
 | `NSFaceIDUsageDescription` | "Naar's Cars uses Face ID to quickly and securely unlock the app." | Biometric auth (Phase 5) |
 
 ### 2.2 Info.plist XML
@@ -43,7 +43,7 @@ The following keys MUST be added to Info.plist with user-friendly descriptions:
 <string>Naar's Cars accesses your photos to set your profile picture and share images in messages.</string>
 
 <key>NSLocationWhenInUseUsageDescription</key>
-<string>Naar's Cars shows your location on the map to help you find nearby requests.</string>
+<string>Naar's Cars uses your location to show where you are on the request map, to start directions from where you are, to share your location in a message when you choose to, and to find communities near you when you tap Use my location in Explore. Your location is not stored.</string>
 
 <key>NSFaceIDUsageDescription</key>
 <string>Naar's Cars uses Face ID to quickly and securely unlock the app.</string>
@@ -103,7 +103,8 @@ Select the following in App Store Connect → App Privacy:
 - **Used for Tracking**: No
 
 #### User Content - Other User Content
-- **Collected**: Yes (ride requests, favor requests, messages, reviews)
+- **Collected**: Yes (ride requests, favor requests, messages, reviews, Town Hall posts, communities created, per-community application answers, invite redemptions, admin removal notes, owned-community limit requests)
+- **Note (multi-community, 2026-10-18)**: no new data *type*. The application answers were already collected; they are now stored per community and shown to that community's owners and admins (ordinary users). Re-check the App Store Connect answers against this list before submitting the Phase 2 build.
 - **Purpose**: App Functionality
 - **Linked to User**: Yes
 - **Used for Tracking**: No
@@ -114,12 +115,13 @@ Select the following in App Store Connect → App Privacy:
 - **Linked to User**: Yes
 - **Used for Tracking**: No
 
-#### Location - Precise Location (Phase 5 only)
-- **Collected**: Yes (when using map view)
-- **Purpose**: App Functionality (show nearby requests)
-- **Linked to User**: Yes (only while using feature)
+#### Location - Precise Location (and Coarse Location)
+- **Collected**: Yes (request map, directions, sharing a location in a message, and finding communities near you)
+- **Purpose**: App Functionality
+- **Linked to User**: Yes (only while using the feature)
 - **Used for Tracking**: No
-- **Note**: Location is NOT stored server-side; used only for real-time map display
+- **Note**: Location is NOT stored server-side. When a person taps Use my location in Explore, Apple reverse-geocodes the device location to the town name, and the point, rounded to three decimal places (about 100 metres), goes to our server only for that one search of communities near it (`find_communities_near`); it is not stored or logged and is never read in the background.
+- **Owner check before release (Release 2):** Location is already declared. In App Store Connect confirm that the existing declaration (precise and coarse, App Functionality, linked, not tracking) covers community search. The decision is to keep the declaration rather than claim the optional-disclosure exemption for a single, user-initiated search.
 
 ### 3.3 Data NOT Collected
 
@@ -141,7 +143,7 @@ Confirm "No" for:
 
 For App Store Connect description:
 
-> Naar's Cars collects personal information (name, email, phone number) to facilitate ride and favor sharing within our community. Profile photos and user-generated content (requests, messages, reviews) are stored to enable app functionality. Push notification tokens are collected to deliver notifications. Location data is used only for the map feature and is not stored. No data is sold to third parties or used for advertising.
+> Naar's Cars collects personal information (name, email, phone number) to facilitate ride and favor sharing within the communities members create and join. Profile photos and user-generated content (requests, messages, reviews) are stored to enable app functionality. Push notification tokens are collected to deliver notifications. Location data is used only for the map, directions, sharing a location in a message and the Use my location search for communities, only when the person asks for it, and is not stored. No data is sold to third parties or used for advertising.
 
 ---
 
@@ -268,7 +270,9 @@ if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .denied {
 
 ## 5. Phone Number Visibility Disclosure
 
-### 5.1 In-App Disclosure
+Sections 5.1 to 5.3 are historical requirements and are not what the app shows; §5.4 is the current behaviour and copy.
+
+### 5.1 In-App Disclosure (historical requirement, superseded by §5.4)
 
 **Requirement PRIV-PHONE-001**: When user first adds phone number, show disclosure:
 
@@ -284,7 +288,7 @@ if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .denied {
 └─────────────────────────────────────┘
 ```
 
-### 5.2 First-Time Confirmation
+### 5.2 First-Time Confirmation (historical requirement, superseded by §5.4)
 
 **Requirement PRIV-PHONE-002**: First time saving phone number, show confirmation:
 
@@ -292,12 +296,34 @@ if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .denied {
 - Message: "Your phone number will be visible to other Naar's Cars members to coordinate rides and favors. Continue?"
 - Actions: "Yes, Save Number", "Cancel"
 
-### 5.3 Phone Masking on Public Profiles
+### 5.3 Phone Masking on Public Profiles (historical requirement)
 
 **Requirement PRIV-PHONE-003**: Phone numbers masked by default on public profiles:
 - Display: `(•••) •••-4321`
 - "Reveal Number" button to show full number
 - Auto-reveal if users are in active conversation or same request
+
+### 5.4 Current server behaviour (verified 2026-10-18)
+
+The requirements above predate the 2026-04 profiles split. What the server does today:
+
+- `phone_number` and `email` are readable only from `profiles`, whose SELECT policies are `profiles_select_own` and `profiles_select_admin` (platform admins) (`20260416_0002`). `public_profiles` exposes `id, name, avatar_url, car, approved, created_at, updated_at` only. No community RPC returns email or phone (`get_community_members`, `20261017_0005` block 29).
+- So a phone number is visible to its owner and to platform admins only, never to other members or to a community's owners and admins (community admins are ordinary users since Phase 2). The in-app copy is `profile_phone_privacy_notice`, shown under the phone field in Edit Profile (`EditProfileView`, twice) and in the sheet that asks for a phone before claiming (`PhoneRequiredSheet`): "Your phone number isn't shown to other members or to any community's owners and admins. Only you and platform moderators can see it." It matches `Legal/PRIVACY_POLICY.md` §6.1. (`edit_profile_phone_disclosure` is a stale key no screen uses.) If a counterpart-visible phone path is ever added, update the copy, the policy and this section together.
+
+## 5A. Community Visibility Disclosures (multi-community, Phases 2 and 3)
+
+Who sees what, as stated in `Legal/PRIVACY_POLICY.md` §6.1, with the server source:
+
+| Viewer | Sees | Never sees | Source |
+|--------|------|-----------|--------|
+| Members of a community you belong to | Name, photo, car, role, join date; your requests, Q&A and Town Hall posts in that community | Email, phone, application answers | `public_profiles` / `my_visible_profile_ids` (`20261017_0002` V3, `20261017_0001` 1c.8); `get_community_members` non-admin branch |
+| Owners and admins of a community you apply to, belong to, left or were removed from | The above plus application answers, who invited you, request and join dates, removal note (the removed person can read it from their own row through the API, but no app screen or push shows it to them); reports about content and members of their community: what was reported, the reason, the reporter's note, the content's author (Phase 3) | Email, phone, who reported content; reports about themselves, the community's other owners and admins or their content; message and community reports | `get_community_members` admin branch (`20261017_0005` block 29); `community_members_select_own_or_admin` (`20261017_0002` N3); `content_reported` recipients without a source user (`20261018_0001` block 2); `get_community_reports` (block 3, no reporter column); reports SELECT policies (`20261005_0022`) |
+| Guests (no account) | Public communities only: requests without addresses, their Q&A and reviews, Town Hall posts, members' name, photo, car | Everything in private communities | `guest_rides` / `guest_favors`, anon policies A17 / A24, `public_profiles` anon branch (`20261017_0002`) |
+| Platform admins | Admin access to every live community (including private), every report and its reporter whatever a community admin decided, email and phone | n/a | `my_admin_community_ids` (`20261017_0001`), `handle_new_report` recipients (`20261018_0001` block 2), `admin_get_reports` (block 7; a community decision leaves `reports.status` pending, block 1), `profiles_select_admin` |
+
+Community moderation (Phase 3, `20261018_0001` block 4, `moderate_community_content`): a community's owners and admins may hide, restore or dismiss reports on posts, comments, rides and favors in their community, and dismiss a person report. They cannot hide content that is already hidden, hide or dismiss once a platform admin has reviewed the report, or restore a platform admin's hide or the 3-reporter auto-hide. Their decision is stored in `reports.community_status` and logged in `content_moderation_events` with `acted_by`; the author of hidden content gets the content-hidden notice.
+
+In-app sentences that carry this disclosure: `community_join_disclosure` (join sheet), the report sheet's reporter-privacy line (`report_reporter_privacy_note`) and, for every report except a community report, `report_note_visible_to_community_admins`, and guideline 7 (`guidelines_7_title` / `guidelines_7_body_moderation`; `guidelines_7_body` is the Phase 2 text, kept in the catalog and no longer shown).
 
 ---
 
@@ -315,18 +341,17 @@ if PHPhotoLibrary.authorizationStatus(for: .readWrite) == .denied {
 | Messages | Indefinite | Not currently supported |
 | Reviews | Indefinite | Admin-initiated |
 | Push tokens | Until logout or 90-day cleanup | Automatic |
+| Community memberships, application answers, removal notes | Until account deletion (a left or removed membership keeps its row) | Cascade on account deletion |
+| Invite redemptions, invite code attempts, owned-limit requests | Until account deletion | Cascade on account deletion |
+| Invite codes created | Until revoked or expired | Revoked and unlinked on the creator's account deletion |
+| Membership event log | Indefinite (append-only) | Anonymised on account deletion (user and reason nulled) |
 | Location data | Not stored | N/A (real-time only) |
 
 ### 6.2 Account Deletion
 
-**Current state**: Account deletion handled by admin request.
+**Current state**: Self-service in the app (My Profile → Delete Account), through `delete_user_account` (`20261017_0004`), which has no precondition (App Store 5.1.1(v)).
 
-**User process**:
-1. User contacts admin (via profile settings or direct message)
-2. Admin manually deletes user account
-3. Associated data cascades (rides, favors authored remain but anonymized)
-
-**Future enhancement**: Self-service account deletion (required for some regions).
+**Communities (decision A3)**: a community whose only owner deletes their account passes to its longest-standing other admin; with no other admin it is archived and every member is told. The default community is never archived while a member remains (ownership passes to a member, platform admins first). The app lists the communities that would close and asks for confirmation before the final step; the server applies the rules either way.
 
 ### 6.3 Data Export
 

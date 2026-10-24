@@ -6,7 +6,20 @@
 //
 
 import Foundation
+import Observation
 internal import Combine
+
+/// What the feed view does for a Town Hall target from a push, a bell row or a deep link.
+enum TownHallFeedAction: Equatable {
+    /// The post is in the list: scroll to it and open its comments.
+    case scrollAndOpenComments(UUID)
+    /// The post is in the list: scroll to it and highlight it.
+    case scrollAndHighlight(UUID)
+    /// The post is not in the list after a refresh: open the comments sheet, which loads by id.
+    case openComments(UUID)
+    /// The post cannot be read (hidden, deleted, or in a community the person is not in).
+    case unavailable
+}
 
 /// ViewModel for town hall feed
 @MainActor
@@ -23,6 +36,16 @@ final class TownHallFeedViewModel: ObservableObject {
     /// A failure while posts are on screen (vote, delete, next page, refresh). The view shows it
     /// as a banner so the loaded feed stays readable.
     @Published var bannerMessage: String?
+    /// The community the feed shows. Nil means no community filter (no community known yet).
+    /// Follows `CommunityContext.communityTabId` through `activeCommunityDidChange()`.
+    private(set) var activeCommunityId: UUID?
+    /// The action for the last target passed to `open(_:)`; the view performs it and calls
+    /// `consumeFeedAction()`.
+    @Published private(set) var pendingFeedAction: TownHallFeedAction?
+    /// "Now in <community>", set only when `open(_:)` switches the Community tab to the community
+    /// of a push, bell row or deep link target. The title menu's switch sets nothing: the person
+    /// chose it. The view shows it as an info toast, which clears it when it goes.
+    @Published var communitySwitchNotice: String?
 
     // MARK: - Private Properties
 
@@ -31,9 +54,34 @@ final class TownHallFeedViewModel: ObservableObject {
     private let repository: TownHallRepository
     private let authService: any AuthServiceProtocol
     private let messageService: any MessageServiceProtocol
+    /// Page and single-post reads (the enrichment fetch and infinite scroll).
+    private let postFetcher: any TownHallPostFetching
+    private let communityContext: CommunityContext
+    /// The awaitable coordinator refresh of `.townHall` (the only coordinator call this
+    /// ViewModel makes); a seam so tests can stand in for the coordinator.
+    private let refreshTownHall: @MainActor (String) async -> RefreshResult?
+
+    /// Bumped on every community change. A network result that returns after it moved belongs to
+    /// the previous community and is dropped before it touches the list, errors or paging.
+    private var generation = 0
+    /// Post ids of the last successful enrichment page (the store reconciliation after a switch).
+    private var lastEnrichmentPostIds: [UUID] = []
+    /// The generation whose `refreshFromNetwork` last finished, successfully or not.
+    private var finishedRefreshGeneration: Int?
+    /// A target whose community is settled, waiting for its post to be resolved against `posts`.
+    private var pendingNavigation: NavigationCoordinator.TownHallNavigationTarget?
+    /// Bumped by every `open(_:)`; an earlier call that is still resolving its community stops.
+    private var navigationRequest = 0
+    /// A target that arrived before the first membership load (cold-start push tap). Its community
+    /// cannot be checked against the memberships yet, so it waits for the load, or for
+    /// `membershipWait` when the load does not come back (offline, a failed load).
+    private var targetAwaitingMemberships: NavigationCoordinator.TownHallNavigationTarget?
+    private var membershipWaitTask: Task<Void, Never>?
+    private let membershipWait: TimeInterval
 
     private var postsCancellable: AnyCancellable?
     private var voteCancellable: AnyCancellable?
+    private var blockedUsersCancellable: AnyCancellable?
     private var postVoteCache: [UUID: (upvotes: Int, downvotes: Int, userVote: VoteType?)] = [:]
     /// Posts with a vote request in flight; further taps on them wait for it.
     private var votesInFlight: Set<UUID> = []
@@ -44,32 +92,74 @@ final class TownHallFeedViewModel: ObservableObject {
     /// The last first-page fetch came back short, so that page is the whole feed and nothing in
     /// memory can be a page scrolled in beyond it (see keepingPagedPosts).
     private var firstPageIsWholeFeed = false
+    /// `loadPosts` has run its first load; later calls are re-entries of the feed.
+    private var hasLoadedPosts = false
+    /// When the current community's last `refreshFromNetwork` succeeded (coordinator refresh and
+    /// enrichment page). A re-entry within `Constants.Timing.refreshStalenessWindow` of it skips
+    /// the refresh.
+    private var lastRefreshSucceededAt: Date?
 
     init(
         repository: TownHallRepository? = nil,
         townHallService: TownHallService? = nil,
         voteService: TownHallVoteService? = nil,
         authService: any AuthServiceProtocol = AuthService.shared,
-        messageService: any MessageServiceProtocol = MessageService.shared
+        messageService: any MessageServiceProtocol = MessageService.shared,
+        postFetcher: (any TownHallPostFetching)? = nil,
+        communityContext: CommunityContext? = nil,
+        refreshTownHall: (@MainActor (String) async -> RefreshResult?)? = nil,
+        membershipWait: TimeInterval = Constants.Timing.townHallTargetMembershipWait
     ) {
+        self.membershipWait = membershipWait
         self.repository = repository ?? .shared
-        self.townHallService = townHallService ?? .shared
+        let resolvedService = townHallService ?? .shared
+        self.townHallService = resolvedService
         self.voteService = voteService ?? .shared
         self.authService = authService
         self.messageService = messageService
+        self.postFetcher = postFetcher ?? resolvedService
+        let resolvedContext = communityContext ?? .shared
+        self.communityContext = resolvedContext
+        self.refreshTownHall = refreshTownHall ?? { trigger in
+            await RefreshCoordinator.shared.forceFullRefreshAndWait(.townHall, trigger: trigger)
+        }
+        self.activeCommunityId = resolvedContext.communityTabId
         bindPosts()
         bindVoteNotifications()
+        bindBlockedUsersNotifications()
     }
 
     // MARK: - Public Methods
 
     /// Load initial posts
     func loadPosts() async {
+        // `.task` calls this on every appearance (tab switch, Back from a profile). Once posts are
+        // on screen, bindPosts has applied every store save made while the feed was off screen, so
+        // re-reading the store only swapped the list for a copy and rendered every visible card
+        // again. Only the in-memory enrichment (votes, comment counts, reviews) can be behind.
+        if hasLoadedPosts && !posts.isEmpty {
+            // A block made on a profile opened from a card: hide that author's posts now, as the
+            // store re-read used to.
+            if posts.contains(where: { messageService.isBlocked($0.userId) }) {
+                posts.removeAll { messageService.isBlocked($0.userId) }
+            }
+            if error != nil { error = nil }
+            if let last = lastRefreshSucceededAt,
+               Date().timeIntervalSince(last) < Constants.Timing.refreshStalenessWindow {
+                return
+            }
+            Task {
+                await refreshFromNetwork(showLoading: false, trigger: "manualReload:townHall")
+            }
+            return
+        }
+        hasLoadedPosts = true
+
         error = nil
         isLoading = true
         defer { isLoading = false }
 
-        let localPosts = (try? repository.getPosts()) ?? []
+        let localPosts = (try? repository.getPosts(communityId: activeCommunityId)) ?? []
         if !localPosts.isEmpty {
             // This also runs when the feed reappears (tab switch, back from a profile). Pages the
             // user already scrolled in stay; see keepingPagedPosts.
@@ -96,9 +186,12 @@ final class TownHallFeedViewModel: ObservableObject {
 
         isLoadingMore = true
         defer { isLoadingMore = false }
+        let startGeneration = generation
 
         do {
-            let page = try await townHallService.fetchPostsPage(limit: pageSize, offset: currentOffset)
+            let page = try await postFetcher.fetchPostsPage(limit: pageSize, offset: currentOffset, communityId: activeCommunityId)
+            // A page of the community the feed showed before a switch.
+            guard startGeneration == generation else { return }
             // The page loaded, so an earlier "couldn't load more" banner is out of date.
             if bannerMessage == "townhall_load_more_failed".localized { bannerMessage = nil }
             // Advance and stop on what the server sent, not on what survived the blocked-author
@@ -113,6 +206,7 @@ final class TownHallFeedViewModel: ObservableObject {
                 posts = applyVoteCache(to: mergePosts(existing: posts, new: page.posts))
             }
         } catch {
+            guard startGeneration == generation else { return }
             bannerMessage = "townhall_load_more_failed".localized
             AppLogger.error("townhall", "Error loading more posts: \(error.localizedDescription)")
         }
@@ -124,7 +218,7 @@ final class TownHallFeedViewModel: ObservableObject {
         // Pull-to-refresh asks for the current feed, and it starts at the top of the list: drop
         // the pages kept in memory beyond the window the sync just stored (keepingPagedPosts) and
         // let them reload on scroll, so a post deleted or hidden further down cannot linger.
-        let stored = (try? repository.getPosts()) ?? []
+        let stored = (try? repository.getPosts(communityId: activeCommunityId)) ?? []
         guard !stored.isEmpty else { return }
         let windowEnd = stored[min(stored.count, pageSize) - 1].createdAt
         replacePosts(with: posts.filter { $0.createdAt >= windowEnd })
@@ -215,12 +309,198 @@ final class TownHallFeedViewModel: ObservableObject {
         }
     }
 
+    /// The Community tab's community changed (the title menu, or the launch membership load
+    /// resolving nil to a community). Reads one scope at a time through the coordinator; never
+    /// resets the coordinator, invalidates, wipes the store or calls the engine.
+    func activeCommunityDidChange() async {
+        let newCommunityId = communityContext.communityTabId
+        guard newCommunityId != activeCommunityId else { return }
+        let wasUnfiltered = activeCommunityId == nil
+        activeCommunityId = newCommunityId
+        generation += 1
+        lastRefreshSucceededAt = nil
+
+        if wasUnfiltered {
+            // Launch resolution nil → X: for a member of one community the rows are the same, so
+            // the list stays up while the scoped refresh runs. The unfiltered list can also hold
+            // another community's posts (a member of two); drop them first, by the repository's
+            // own rule, or the merge and the paged-row rule would keep them in this feed.
+            replacePosts(with: posts.filter { $0.communityId == newCommunityId || $0.communityId == nil })
+            await refreshFromNetwork(showLoading: false, trigger: "communityResolved")
+            return
+        }
+
+        let switchGeneration = generation
+        posts = []
+        currentOffset = 0
+        hasMore = true
+        firstPageIsWholeFeed = false
+        error = nil
+        isLoading = true
+        await refreshFromNetwork(showLoading: false, trigger: "communitySwitch")
+        guard switchGeneration == generation else { return }
+        isLoading = false
+
+        // The coordinator joins a sync already in flight, which may have started for the previous
+        // community. The screen is right after the enrichment page; the store (the offline cache)
+        // is checked here and refreshed again, at most twice, until it holds that page.
+        for _ in 1...2 {
+            let stored = Set(((try? repository.getPosts(communityId: activeCommunityId)) ?? []).map(\.id))
+            if Set(lastEnrichmentPostIds).isSubset(of: stored) { break }
+            _ = await refreshTownHall("communitySwitch:retry")
+            guard switchGeneration == generation else { return }
+        }
+    }
+
+    // MARK: - Navigation targets
+
+    /// Opens a Town Hall target (push, bell row, deep link). Switches the Community tab to the
+    /// post's community when it is another active membership, then publishes the scroll,
+    /// highlight or open-comments action through `pendingFeedAction`. Never switches to a
+    /// community the person is not an active member of: a post that cannot be read publishes
+    /// `.unavailable` and the feed stays where it is. A target that arrives before the first
+    /// membership load (cold-start push tap) waits for that load, at most `membershipWait`.
+    func open(_ target: NavigationCoordinator.TownHallNavigationTarget) async {
+        navigationRequest += 1
+        let request = navigationRequest
+        pendingNavigation = nil
+        targetAwaitingMemberships = nil
+        membershipWaitTask?.cancel()
+        membershipWaitTask = nil
+
+        // 0. Cold start: the memberships load off the launch path and are still empty, so a
+        // target for another community would fail the membership check below and never switch
+        // the tab. Hold it until the load returns.
+        if communityContext.isAwaitingMemberships {
+            holdUntilMembershipsLoad(target, request: request)
+            return
+        }
+        await navigate(to: target, request: request)
+    }
+
+    /// Steps 1-3 of `open(_:)`.
+    private func navigate(to target: NavigationCoordinator.TownHallNavigationTarget, request: Int) async {
+        // 1. The post's community: from the target when it is an active membership, otherwise
+        // from the post itself (an old push, a row with no community, or a community not loaded).
+        let activeIds = Set(communityContext.activeMemberships.map(\.communityId))
+        let communityId: UUID?
+        if let given = target.communityId, activeIds.contains(given) {
+            communityId = given
+        } else {
+            do {
+                let post = try await postFetcher.fetchPost(id: target.postId)
+                guard request == navigationRequest else { return }
+                guard let post else {
+                    pendingFeedAction = .unavailable
+                    return
+                }
+                communityId = post.communityId
+            } catch {
+                guard request == navigationRequest else { return }
+                guard let given = target.communityId else {
+                    AppLogger.warning("townhall", "Post lookup for a navigation target failed: \(error.localizedDescription)")
+                    pendingFeedAction = .unavailable
+                    return
+                }
+                communityId = given
+            }
+        }
+
+        // 2. Switch only to an active membership other than the one shown.
+        if let communityId, activeIds.contains(communityId), communityId != activeCommunityId {
+            communityContext.communityTabId = communityId
+            if let name = communityContext.name(for: communityId) {
+                communitySwitchNotice = String(format: "townhall_now_in_community".localized, name)
+            }
+            await activeCommunityDidChange()
+            guard request == navigationRequest else { return }
+        }
+
+        // 3. Resolve against the list now, or when the current generation's refresh finishes.
+        pendingNavigation = target
+        // A target missing from a list this generation has already refreshed can be newer than
+        // that refresh: the review flow opens the Town Hall post it has just created. Refresh the
+        // way a created post does, or the 30 s re-entry skip in loadPosts leaves the feed without
+        // it after its comments sheet closes. The target still resolves now, without waiting.
+        if finishedRefreshGeneration == generation, !posts.contains(where: { $0.id == target.postId }) {
+            lastRefreshSucceededAt = nil
+            Task { await refreshAfterPostCreated() }
+        }
+        resolvePendingNavigation()
+    }
+
+    private func holdUntilMembershipsLoad(_ target: NavigationCoordinator.TownHallNavigationTarget, request: Int) {
+        targetAwaitingMemberships = target
+        observeMembershipLoad(request: request)
+        let wait = membershipWait
+        membershipWaitTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(wait))
+            guard !Task.isCancelled, let self else { return }
+            // Not cancelled by the release below: this task goes on to run the target's reads.
+            self.membershipWaitTask = nil
+            await self.releaseTargetAwaitingMemberships(request: request)
+        }
+    }
+
+    /// Re-registers after each change, since `withObservationTracking` fires once.
+    private func observeMembershipLoad(request: Int) {
+        let context = communityContext
+        withObservationTracking {
+            _ = context.hasLoadedMemberships
+        } onChange: { [weak self] in
+            Task { @MainActor [weak self] in
+                guard let self, request == self.navigationRequest, self.targetAwaitingMemberships != nil else { return }
+                if self.communityContext.isAwaitingMemberships {
+                    self.observeMembershipLoad(request: request)
+                } else {
+                    await self.releaseTargetAwaitingMemberships(request: request)
+                }
+            }
+        }
+    }
+
+    private func releaseTargetAwaitingMemberships(request: Int) async {
+        guard request == navigationRequest, let target = targetAwaitingMemberships else { return }
+        targetAwaitingMemberships = nil
+        membershipWaitTask?.cancel()
+        membershipWaitTask = nil
+        await navigate(to: target, request: request)
+    }
+
+    /// The view performed `pendingFeedAction`.
+    func consumeFeedAction() {
+        pendingFeedAction = nil
+    }
+
+    /// Publishes the action for `pendingNavigation` once it can be decided: the post is in the
+    /// list, or the current generation has finished a refresh without it. Otherwise it waits;
+    /// `refreshFromNetwork` calls this again at its end.
+    private func resolvePendingNavigation() {
+        guard let target = pendingNavigation else { return }
+        if posts.contains(where: { $0.id == target.postId }) {
+            switch target.mode {
+            case .openComments: pendingFeedAction = .scrollAndOpenComments(target.postId)
+            case .highlightPost: pendingFeedAction = .scrollAndHighlight(target.postId)
+            }
+            pendingNavigation = nil
+        } else if finishedRefreshGeneration == generation {
+            pendingFeedAction = .openComments(target.postId)
+            pendingNavigation = nil
+        }
+    }
+
     // MARK: - Local-first helpers
 
     private func bindPosts() {
-        postsCancellable = repository.getPostsPublisher()
-            .sink { [weak self] stored in
+        postsCancellable = repository.getPostsPublisher(communityId: { [weak self] in self?.activeCommunityId })
+            .sink { [weak self] emission in
                 guard let self else { return }
+                // A full sync of another community than the one shown (one that started before a
+                // switch and was joined) would otherwise empty the list through keepingPagedPosts.
+                if let syncedScope = emission.syncedScope, syncedScope.communityId != self.activeCommunityId {
+                    return
+                }
+                let stored = emission.posts
                 let enriched = self.preserveReviewEnrichment(from: self.posts, to: stored)
                 let merged = self.keepingPagedPosts(from: self.posts, withStored: enriched)
                 self.replacePosts(with: self.sortWithPinnedFirst(self.applyVoteCache(to: merged)))
@@ -258,6 +538,27 @@ final class TownHallFeedViewModel: ObservableObject {
         return (stored + paged).filter { !messageService.isBlocked($0.userId) }
     }
 
+    /// A block or unblock made anywhere (a profile, Settings, a comment) changes which authors the
+    /// feed may show. Hide newly blocked authors now, and drop the freshness mark so the next
+    /// appearance refreshes: an unblocked author's posts were left out of the last page and only a
+    /// fetch brings them back. This also covers a block whose refresh returns after the feed has
+    /// already reappeared (Back from the profile before `blockUser` finished).
+    private func bindBlockedUsersNotifications() {
+        blockedUsersCancellable = NotificationCenter.default.publisher(for: .blockedUsersDidChange)
+            .sink { [weak self] _ in
+                Task { @MainActor in
+                    self?.blockedUsersDidChange()
+                }
+            }
+    }
+
+    private func blockedUsersDidChange() {
+        lastRefreshSucceededAt = nil
+        if posts.contains(where: { messageService.isBlocked($0.userId) }) {
+            posts.removeAll { messageService.isBlocked($0.userId) }
+        }
+    }
+
     private func bindVoteNotifications() {
         voteCancellable = NotificationCenter.default.publisher(for: .townHallPostVotesDidChange)
             .compactMap { $0.object as? UUID }
@@ -277,11 +578,28 @@ final class TownHallFeedViewModel: ObservableObject {
     private func refreshFromNetwork(showLoading: Bool, trigger: String) async -> Bool {
         if showLoading { isLoading = true }
         defer { if showLoading { isLoading = false } }
+        let startGeneration = generation
+        let communityId = activeCommunityId
 
         // Run the enrichment fetch concurrently with the coordinator refresh so pull-to-refresh
         // latency stays at one round trip.
-        async let enrichment = townHallService.fetchPostsPage(limit: pageSize, offset: 0)
-        let result = await RefreshCoordinator.shared.forceFullRefreshAndWait(.townHall, trigger: trigger)
+        async let enrichment = postFetcher.fetchPostsPage(limit: pageSize, offset: 0, communityId: communityId)
+        let result = await refreshTownHall(trigger)
+        let enrichmentResult: Result<(posts: [TownHallPost], serverCount: Int), Error>
+        do {
+            enrichmentResult = .success(try await enrichment)
+        } catch {
+            enrichmentResult = .failure(error)
+        }
+        // Results for the community the feed showed before a switch.
+        guard startGeneration == generation else { return false }
+        // Whatever the outcome, this generation has now finished a refresh: a held navigation
+        // target is resolved after `posts` / `error` are set below, so it never waits forever.
+        defer {
+            finishedRefreshGeneration = startGeneration
+            resolvePendingNavigation()
+        }
+
         var failure: Error?
         if case .failed(let error, _)? = result {
             failure = error
@@ -289,7 +607,8 @@ final class TownHallFeedViewModel: ObservableObject {
         }
 
         do {
-            let page = try await enrichment
+            let page = try enrichmentResult.get()
+            lastEnrichmentPostIds = page.posts.map(\.id)
             updateVoteCache(with: page.posts)
             // A short first page is the whole feed: nothing older exists on the server, so a post it
             // no longer returns (deleted, or hidden by a moderator) must not survive as a "paged" row.
@@ -301,10 +620,12 @@ final class TownHallFeedViewModel: ObservableObject {
             hasMore = !isWholeFeed
         } catch {
             failure = error
+            lastEnrichmentPostIds = []
             AppLogger.error("townhall", "Error refreshing posts: \(error.localizedDescription)")
         }
 
         guard let failure else {
+            lastRefreshSucceededAt = Date()
             error = nil
             // A refresh that worked supersedes an earlier "couldn't refresh" banner.
             if bannerMessage == "townhall_refresh_failed".localized { bannerMessage = nil }

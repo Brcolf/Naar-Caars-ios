@@ -50,7 +50,10 @@ struct AnnouncementsView: View {
                     ScrollViewReader { proxy in
                         List {
                             ForEach(announcements) { notification in
-                                NotificationRow(notification: notification) {
+                                NotificationRow(
+                                    notification: notification,
+                                    communityChipText: CommunityContext.shared.chipText(for: notification.communityId, respectingScope: false)
+                                ) {
                                     Task {
                                         await viewModel.markAsRead(notification)
                                     }

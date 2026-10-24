@@ -37,14 +37,26 @@ final class CreatePostViewModel: ObservableObject {
         characterCount <= 500 &&
         !isLoading
     }
+
+    /// The community a new post is sent to (spec §3.7): the Community tab's community once the
+    /// memberships have loaded; nil before that, because the stored value may name a community
+    /// the person has since left. Nil omits `community_id` and the server resolves the primary.
+    var postCommunityId: UUID? {
+        communityContext.hasLoadedMemberships ? communityContext.communityTabId : nil
+    }
     
     // MARK: - Private Properties
     
     private let townHallService = TownHallService.shared
     private let authService: any AuthServiceProtocol
+    private let communityContext: CommunityContext
 
-    init(authService: any AuthServiceProtocol = AuthService.shared) {
+    init(
+        authService: any AuthServiceProtocol = AuthService.shared,
+        communityContext: CommunityContext? = nil
+    ) {
         self.authService = authService
+        self.communityContext = communityContext ?? .shared
     }
     
     // MARK: - Public Methods
@@ -84,7 +96,8 @@ final class CreatePostViewModel: ObservableObject {
             let post = try await townHallService.createPost(
                 userId: userId,
                 content: trimmedContent,
-                imageUrl: uploadedImageUrl
+                imageUrl: uploadedImageUrl,
+                communityId: postCommunityId
             )
             
             // Reset form

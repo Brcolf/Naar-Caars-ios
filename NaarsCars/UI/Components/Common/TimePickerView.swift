@@ -35,78 +35,96 @@ struct TimePickerView: View {
     }
 
     var body: some View {
-        HStack {
-            Text("time_picker_label".localized)
-            
-            Spacer()
-            
-            HStack(spacing: 2) {
-                // Hour picker
-                Menu {
-                    ForEach(hours, id: \.self) { h in
-                        Button(action: { hour = h }) {
-                            if h == hour {
-                                Label("\(h)", systemImage: "checkmark")
-                            } else {
-                                Text("\(h)")
-                            }
-                        }
-                    }
-                } label: {
-                    Text("\(hour)")
-                        .frame(minWidth: 28)
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel(controlLabel("time_picker_hour_accessibility"))
-                .accessibilityValue("\(hour)")
+        // At accessibility text sizes the three menus left the label so little width that it
+        // broke inside the word ("Ti / me"); when the row does not fit on one line, the label
+        // goes above the menus. At the default size the first layout is used, as before.
+        ViewThatFits(in: .horizontal) {
+            HStack {
+                timeLabel
 
-                Text(":")
-                    .foregroundColor(.secondary)
-                    .accessibilityHidden(true)
+                Spacer()
 
-                // Minute picker
-                Menu {
-                    ForEach(minutes, id: \.self) { m in
-                        Button(action: { minute = m }) {
-                            if m == minute {
-                                Label(String(format: "%02d", m), systemImage: "checkmark")
-                            } else {
-                                Text(String(format: "%02d", m))
-                            }
-                        }
-                    }
-                } label: {
-                    Text(String(format: "%02d", minute))
-                        .frame(minWidth: 28)
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel(controlLabel("time_picker_minute_accessibility"))
-                .accessibilityValue(String(format: "%02d", minute))
-
-                // AM/PM picker
-                Menu {
-                    Button(action: { isAM = true }) {
-                        if isAM {
-                            Label("time_picker_am".localized, systemImage: "checkmark")
-                        } else {
-                            Text("time_picker_am".localized)
-                        }
-                    }
-                    Button(action: { isAM = false }) {
-                        if !isAM {
-                            Label("time_picker_pm".localized, systemImage: "checkmark")
-                        } else {
-                            Text("time_picker_pm".localized)
-                        }
-                    }
-                } label: {
-                    Text(isAM ? "time_picker_am".localized : "time_picker_pm".localized)
-                        .frame(minWidth: 36)
-                }
-                .buttonStyle(.bordered)
-                .accessibilityLabel(controlLabel("time_picker_period_accessibility"))
-                .accessibilityValue(isAM ? "time_picker_am".localized : "time_picker_pm".localized)
+                pickers
             }
+
+            VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                timeLabel
+                pickers
+            }
+        }
+    }
+
+    private var timeLabel: some View {
+        Text("time_picker_label".localized)
+    }
+
+    private var pickers: some View {
+        HStack(spacing: 2) {
+            // Hour picker
+            Menu {
+                ForEach(hours, id: \.self) { h in
+                    Button(action: { hour = h }) {
+                        if h == hour {
+                            Label("\(h)", systemImage: "checkmark")
+                        } else {
+                            Text("\(h)")
+                        }
+                    }
+                }
+            } label: {
+                Text("\(hour)")
+                    .frame(minWidth: 28)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel(controlLabel("time_picker_hour_accessibility"))
+            .accessibilityValue("\(hour)")
+
+            Text(":")
+                .foregroundColor(.secondary)
+                .accessibilityHidden(true)
+
+            // Minute picker
+            Menu {
+                ForEach(minutes, id: \.self) { m in
+                    Button(action: { minute = m }) {
+                        if m == minute {
+                            Label(String(format: "%02d", m), systemImage: "checkmark")
+                        } else {
+                            Text(String(format: "%02d", m))
+                        }
+                    }
+                }
+            } label: {
+                Text(String(format: "%02d", minute))
+                    .frame(minWidth: 28)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel(controlLabel("time_picker_minute_accessibility"))
+            .accessibilityValue(String(format: "%02d", minute))
+
+            // AM/PM picker
+            Menu {
+                Button(action: { isAM = true }) {
+                    if isAM {
+                        Label("time_picker_am".localized, systemImage: "checkmark")
+                    } else {
+                        Text("time_picker_am".localized)
+                    }
+                }
+                Button(action: { isAM = false }) {
+                    if !isAM {
+                        Label("time_picker_pm".localized, systemImage: "checkmark")
+                    } else {
+                        Text("time_picker_pm".localized)
+                    }
+                }
+            } label: {
+                Text(isAM ? "time_picker_am".localized : "time_picker_pm".localized)
+                    .frame(minWidth: 36)
+            }
+            .buttonStyle(.bordered)
+            .accessibilityLabel(controlLabel("time_picker_period_accessibility"))
+            .accessibilityValue(isAM ? "time_picker_am".localized : "time_picker_pm".localized)
         }
     }
 }

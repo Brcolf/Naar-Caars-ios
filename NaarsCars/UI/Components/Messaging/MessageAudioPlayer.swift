@@ -18,8 +18,15 @@ final class MessageAudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegat
     @Published private(set) var duration: Double = 0
     @Published private(set) var currentUrl: URL?
     
+    /// Turns a stored voice-note URL into the URL to download from (signed for "audio-messages").
+    /// Internal so tests can swap it on `.shared`; the signed URL is never persisted or logged.
+    var urlResolver: any StorageURLResolving = StorageURLSigner.shared
+    /// No URLCache: a signed URL (and its token) never reaches the shared disk store.
+    var downloadSession: URLSession = .signedStorageDownload
+
     private var player: AVAudioPlayer?
     private var progressTimer: Timer?
+    /// Keyed by the stored URL, never the signed one.
     private var cachedFiles: [URL: CachedAudioFile] = [:]
 
     private struct CachedAudioFile {
@@ -110,7 +117,9 @@ final class MessageAudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegat
         progressTimer = nil
     }
     
-    private func resolvePlayableUrl(for url: URL) async throws -> URL {
+    /// Internal for tests. The in-memory map and the temp-file name stay keyed by the stored URL;
+    /// only the download uses the resolved (possibly signed) URL.
+    func resolvePlayableUrl(for url: URL) async throws -> URL {
         if url.isFileURL {
             return url
         }
@@ -124,7 +133,13 @@ final class MessageAudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegat
             cachedFiles.removeValue(forKey: url)
         }
         
-        let (data, _) = try await URLSession.shared.data(from: url)
+        let downloadURL = await urlResolver.resolvedURL(for: url)
+        let (data, response) = try await downloadSession.data(from: downloadURL)
+        // A non-2xx body (for example a storage error after a signing fallback) is never written or cached,
+        // so the next tap or prefetch downloads again.
+        guard let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+            throw URLError(.badServerResponse)
+        }
         let fileName = "audio-\(abs(url.absoluteString.hashValue)).m4a"
         let fileUrl = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
         try data.write(to: fileUrl, options: .atomic)
@@ -170,5 +185,12 @@ final class MessageAudioPlayer: NSObject, ObservableObject, AVAudioPlayerDelegat
 
     deinit {
         NotificationCenter.default.removeObserver(self)
+    }
+}
+
+extension MessageAudioPlayer: VoiceNotePrefetching {
+    /// Fills the temp-file cache so the first tap plays without a download. Errors are dropped, as in play(url:).
+    func prefetch(_ storedURL: URL) async {
+        _ = try? await resolvePlayableUrl(for: storedURL)
     }
 }

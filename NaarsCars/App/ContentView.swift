@@ -54,7 +54,7 @@ struct ContentView: View {
 
                     case .needsApplication:
                         NavigationStack {
-                            ApplicationFieldsView()
+                            CommunityOnboardingView()
                         }
 
                     case .pendingApproval:
@@ -127,6 +127,8 @@ struct ContentView: View {
         .onChange(of: launchManager.state.id) { oldId, newId in
             // React to state ID changes (e.g., sign out triggers state change)
             AppLogger.info("app", "Launch state ID changed from '\(oldId)' to '\(newId)'")
+            // A join link that arrived before launch finished is decided on the first `.ready`.
+            IncomingLinkHandler.shared.launchStateDidChange(launchManager.state)
             if newId.contains("unauthenticated") {
                 AppLogger.info("app", "Switching to login view")
                 lockManager.forceUnlock()
@@ -136,7 +138,10 @@ struct ContentView: View {
             AppLogger.info("lock", "scenePhase: \(oldPhase) → \(newPhase), lockState=\(lockManager.state)")
             if newPhase == .active, isAuthenticated {
                 RefreshCoordinator.shared.handleAppForegrounded()
-                Task { await launchManager.recheckBanStatus() }
+                Task {
+                    await launchManager.recheckAccountStatus()
+                    await CommunityContext.shared.refreshMembershipsIfStale()
+                }
             } else if newPhase == .background {
                 RefreshCoordinator.shared.stopSafetyPoll()
             }

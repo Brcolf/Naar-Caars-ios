@@ -13,7 +13,14 @@ struct AdminActiveRidesOverlay: View {
     @State private var isLoading = false
     @State private var error: String?
 
-    private let adminService = AdminService.shared
+    /// nil = every community (platform admins); otherwise that community's figures.
+    let communityId: UUID?
+    private let adminService: any AdminServiceProtocol
+
+    init(communityId: UUID? = nil, service: any AdminServiceProtocol = AdminService.shared) {
+        self.communityId = communityId
+        self.adminService = service
+    }
 
     var body: some View {
         NavigationStack {
@@ -105,7 +112,7 @@ struct AdminActiveRidesOverlay: View {
         defer { isLoading = false }
 
         do {
-            requests = try await adminService.fetchActiveRequests()
+            requests = try await adminService.fetchActiveRequests(communityId: communityId)
         } catch {
             self.error = "common_load_error".localized
             AppLogger.error("admin", "Active requests overlay error: \(error.localizedDescription)")

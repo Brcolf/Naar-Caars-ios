@@ -8,6 +8,12 @@
 import Foundation
 internal import Combine
 
+/// Cache key: the period and the community the rows were read for (nil = no filter).
+struct LeaderboardCacheKey: Hashable {
+    let period: LeaderboardPeriod
+    let communityId: UUID?
+}
+
 /// ViewModel for leaderboard with client-side caching
 @MainActor
 final class LeaderboardViewModel: ObservableObject {
@@ -25,25 +31,47 @@ final class LeaderboardViewModel: ObservableObject {
 
     // MARK: - Private Properties
 
-    private let leaderboardService = LeaderboardService.shared
+    private let leaderboardService: any LeaderboardFetching
     private let authService: any AuthServiceProtocol
+    private let communityContext: CommunityContext?
+    /// A community the rows are pinned to, whatever the Town Hall community is (the community
+    /// page). Nil follows `communityContext.communityTabId`.
+    private let pinnedCommunityId: UUID?
 
-    // Cache: [Period: (entries, spotlights, cachedAt)]
-    private var cachedEntries: [LeaderboardPeriod: (entries: [LeaderboardEntry], spotlights: [SpotlightEntry], cachedAt: Date)] = [:]
+    // Cache: [Period + community: (entries, spotlights, cachedAt)]
+    private var cachedEntries: [LeaderboardCacheKey: (entries: [LeaderboardEntry], spotlights: [SpotlightEntry], cachedAt: Date)] = [:]
     private let cacheTTL: TimeInterval = Constants.CacheTTL.leaderboard
-    /// The period whose rows are in `entries` and `spotlights`.
-    private var displayedPeriod: LeaderboardPeriod?
+    /// The period and community whose rows are in `entries` and `spotlights`.
+    private var displayedKey: LeaderboardCacheKey?
 
-    init(authService: any AuthServiceProtocol = AuthService.shared) {
+    init(
+        leaderboardService: any LeaderboardFetching = LeaderboardService.shared,
+        authService: any AuthServiceProtocol = AuthService.shared,
+        communityContext: CommunityContext? = nil,
+        communityId: UUID? = nil
+    ) {
+        self.leaderboardService = leaderboardService
         self.authService = authService
+        self.communityContext = communityContext
+        self.pinnedCommunityId = communityId
+    }
+
+    private var currentKey: LeaderboardCacheKey {
+        LeaderboardCacheKey(period: selectedPeriod, communityId: pinnedCommunityId ?? communityContext?.communityTabId)
+    }
+
+    /// The Community tab's community changed: load the rows for the new key.
+    func communityDidChange() async {
+        await loadLeaderboard()
     }
 
     // MARK: - Public Methods
 
-    /// Load leaderboard with caching
-    /// Shows cached data immediately, refreshes in background if cache is valid
+    /// Load leaderboard with caching.
+    /// Rows cached for this period and community within `Constants.CacheTTL.leaderboard` are shown
+    /// without a request; pull-to-refresh (`refresh()`) is the way to fetch them again sooner.
     func loadLeaderboard() async {
-        let period = selectedPeriod
+        let period = currentKey
         error = nil
         bannerMessage = nil
 
@@ -53,14 +81,14 @@ final class LeaderboardViewModel: ObservableObject {
             show(entries: cached.entries, spotlights: cached.spotlights, for: period)
             // A load still in flight for the period the user just left no longer owns the spinner.
             isLoading = false
-            // Refresh in background; the rows on screen are still fresh, so a failure stays quiet.
-            Task { await fetchFresh(period: period, showLoading: false, reportsFailure: false) }
+            // No background refetch: the view calls this on every appearance (each return to the
+            // tab or the segment), and each refetch was two RPCs for rows that are still fresh.
             return
         }
 
         // Never leave another period's rows under the newly selected segment. Clearing them brings
         // up the skeleton, and a failed load then reaches the error view.
-        if displayedPeriod != period {
+        if displayedKey != period {
             show(entries: [], spotlights: [], for: period)
         }
         await fetchFresh(period: period, showLoading: true, reportsFailure: true)
@@ -69,7 +97,7 @@ final class LeaderboardViewModel: ObservableObject {
     /// Refresh leaderboard (pull-to-refresh)
     /// Bypasses cache and fetches fresh data
     func refresh() async {
-        let period = selectedPeriod
+        let period = currentKey
         cachedEntries.removeValue(forKey: period)
         await fetchFresh(period: period, showLoading: false, reportsFailure: true)
     }
@@ -78,26 +106,26 @@ final class LeaderboardViewModel: ObservableObject {
 
     /// - Parameter period: Captured by the caller. `selectedPeriod` can change while the request is
     ///   in flight; reading it again afterwards showed, and cached, one period's rows under another.
-    private func fetchFresh(period: LeaderboardPeriod, showLoading: Bool, reportsFailure: Bool) async {
+    private func fetchFresh(period: LeaderboardCacheKey, showLoading: Bool, reportsFailure: Bool) async {
         if showLoading { isLoading = true }
         // A newer load for another period owns the loading state once the selection has moved on.
-        defer { if showLoading && period == selectedPeriod { isLoading = false } }
+        defer { if showLoading && period == currentKey { isLoading = false } }
 
         do {
-            async let entriesTask = leaderboardService.fetchLeaderboard(period: period)
-            async let spotlightsTask = leaderboardService.fetchSpotlights(period: period)
+            async let entriesTask = leaderboardService.fetchLeaderboard(period: period.period, communityId: period.communityId)
+            async let spotlightsTask = leaderboardService.fetchSpotlights(period: period.period, communityId: period.communityId)
 
             let (freshEntries, freshSpotlights) = try await (entriesTask, spotlightsTask)
             BadgeCache.shared.storeBatch(entries: freshEntries)
             cachedEntries[period] = (freshEntries, freshSpotlights, Date())
             // A response for a period the user has since left is cached but not shown.
-            guard period == selectedPeriod else { return }
+            guard period == currentKey else { return }
             error = nil
             bannerMessage = nil
             show(entries: freshEntries, spotlights: freshSpotlights, for: period)
         } catch {
             AppLogger.error("leaderboard", "Error loading leaderboard: \(error.localizedDescription)")
-            guard reportsFailure, period == selectedPeriod else { return }
+            guard reportsFailure, period == currentKey else { return }
             if entries.isEmpty {
                 self.error = error as? AppError ?? AppError.processingError(error.localizedDescription)
             } else {
@@ -106,10 +134,10 @@ final class LeaderboardViewModel: ObservableObject {
         }
     }
 
-    private func show(entries: [LeaderboardEntry], spotlights: [SpotlightEntry], for period: LeaderboardPeriod) {
+    private func show(entries: [LeaderboardEntry], spotlights: [SpotlightEntry], for period: LeaderboardCacheKey) {
         self.entries = entries
         self.spotlights = spotlights
-        displayedPeriod = period
+        displayedKey = period
         updateCurrentUserRank()
     }
     

@@ -126,7 +126,8 @@ final class RideService {
         seats: Int = 1,
         notes: String? = nil,
         gift: String? = nil,
-        timezone: String
+        timezone: String,
+        communityId: UUID? = nil
     ) async throws -> Ride {
         // Format date as "yyyy-MM-dd" using local timezone
         // Important: Use local timezone to match what the user selected in DatePicker
@@ -137,7 +138,7 @@ final class RideService {
         let dateString = dateFormatter.string(from: date)
         
         // Create ride data
-        let rideData: [String: AnyCodable] = [
+        var rideData: [String: AnyCodable] = [
             "user_id": AnyCodable(userId.uuidString),
             "type": AnyCodable("request"),
             "date": AnyCodable(dateString),
@@ -150,6 +151,10 @@ final class RideService {
             "status": AnyCodable("open"),
             "timezone": AnyCodable(timezone)
         ]
+        // A nil community lets the database fill trigger use the member's primary one.
+        if let communityId {
+            rideData["community_id"] = AnyCodable(communityId.uuidString)
+        }
         
         // Insert ride
         let response = try await supabase

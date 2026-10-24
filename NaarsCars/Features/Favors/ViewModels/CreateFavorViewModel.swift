@@ -27,7 +27,21 @@ final class CreateFavorViewModel: ObservableObject {
     @Published var timezone: String = "America/Los_Angeles"
     @Published var gift: String = ""
     @Published var selectedParticipantIds: Set<UUID> = []
+    @Published var selectedCommunityId: UUID? {
+        didSet {
+            // Participants are searched within the selected community, so people picked for
+            // one community may not belong to another. The first selection keeps them.
+            if requiresCommunityChoice, oldValue != nil, oldValue != selectedCommunityId {
+                selectedParticipantIds = []
+            }
+            if oldValue != selectedCommunityId { applyCommunityTimezoneDefault() }
+        }
+    }
+    @Published private(set) var communityOptions: [CommunityMembership] = []
     
+    /// True once the person picked a time zone themselves; the community default then stays out of the way.
+    private(set) var didChooseTimezone = false
+
     @Published var isLoading: Bool = false
     @Published var error: String?
     
@@ -35,26 +49,85 @@ final class CreateFavorViewModel: ObservableObject {
     
     private let favorService: any FavorServiceProtocol
     private let authService: any AuthServiceProtocol
+    private let communityContext: CommunityContext
     /// The favor being edited (EditFavorView). Lets `updateFavor` tell a cleared field from an
     /// untouched one and apply the past-date rule only when the date was changed.
     private var editingOriginal: Favor?
 
     init(
         favorService: any FavorServiceProtocol = FavorService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared
+        authService: any AuthServiceProtocol = AuthService.shared,
+        communityContext: CommunityContext? = nil
     ) {
         self.favorService = favorService
         self.authService = authService
+        self.communityContext = communityContext ?? .shared
     }
     
     // MARK: - Public Methods
     
+    /// True when the member belongs to several communities and must say where this goes.
+    var requiresCommunityChoice: Bool { communityOptions.count > 1 }
+
+    /// The active memberships' ids. The form re-runs `configureCommunityChoice()` when this
+    /// changes, so memberships that load after the form opened still bring up "Post to".
+    var communityChoiceSignature: [UUID] {
+        communityContext.activeMemberships.map(\.communityId)
+    }
+
+    /// Fills the "Post to" options and default. A member of one community sees no section.
+    func configureCommunityChoice() {
+        guard communityContext.hasMultipleCommunities else {
+            communityOptions = []
+            applyCommunityTimezoneDefault()
+            return
+        }
+        communityOptions = communityContext.activeMemberships
+        if selectedCommunityId == nil || !communityOptions.contains(where: { $0.communityId == selectedCommunityId }) {
+            selectedCommunityId = communityContext.defaultPostCommunityId
+        }
+        applyCommunityTimezoneDefault()
+    }
+
+    /// The picker's setter: records that the person chose the zone.
+    func chooseTimezone(_ id: String) {
+        timezone = id
+        didChooseTimezone = true
+    }
+
+    /// While creating and before the person picks a zone, follows the posting community's zone:
+    /// the selected community when the form asks, else the single active membership, else the old default.
+    func applyCommunityTimezoneDefault() {
+        guard editingOriginal == nil, !didChooseTimezone else { return }
+        let active = communityContext.activeMemberships
+        let zone: String?
+        if requiresCommunityChoice {
+            zone = communityContext.membership(for: selectedCommunityId)?.timezone
+        } else if active.count == 1 {
+            zone = active.first?.timezone
+        } else {
+            zone = nil
+        }
+        let resolved = zone ?? "America/Los_Angeles"
+        if timezone != resolved { timezone = resolved }
+    }
+
+    /// The confirmation button title; names the community while the "Post to" section shows.
+    var postButtonTitle: String {
+        if requiresCommunityChoice,
+           let name = communityOptions.first(where: { $0.communityId == selectedCommunityId })?.name {
+            return "community_post_to_button".localized(with: name)
+        }
+        return "favor_create_post".localized
+    }
+
     /// True once the two fields a favor cannot exist without are filled in. The Post button
     /// stays disabled until then, as it does on the New Post sheet; the remaining rules are
     /// still checked by `validateForm()` on submit.
     var hasRequiredFields: Bool {
         !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
             && !location.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+            && (!requiresCommunityChoice || selectedCommunityId != nil)
     }
 
     /// Validate form fields
@@ -188,8 +261,12 @@ final class CreateFavorViewModel: ObservableObject {
                 date: date,
                 time: formattedTime,
                 gift: gift.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : gift.trimmingCharacters(in: .whitespacesAndNewlines),
-                timezone: timezone
+                timezone: timezone,
+                communityId: requiresCommunityChoice ? selectedCommunityId : nil
             )
+            if requiresCommunityChoice, let selectedCommunityId {
+                communityContext.lastPostedCommunityId = selectedCommunityId
+            }
             
             // Add participants if any were selected (max 5)
             let participantIds = Array(selectedParticipantIds.prefix(5))

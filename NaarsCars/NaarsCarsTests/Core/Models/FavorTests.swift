@@ -140,5 +140,37 @@ final class FavorTests: XCTestCase {
         XCTAssertNil(favor.claimedBy)
         XCTAssertEqual(favor.reviewed, false)
     }
-}
 
+    /// `is_example` (Release 2): absent reads false (ruling I4); true reads true.
+    func testDecode_IsExample() throws {
+        func json(_ extra: String) -> Data {
+            """
+            {
+                "id": "123e4567-e89b-12d3-a456-426614174000",
+                "user_id": "223e4567-e89b-12d3-a456-426614174000",
+                "title": "Borrow a ladder",
+                "location": "Community Park",
+                "duration": "couple_hours",
+                "date": "2025-01-12T00:00:00Z",
+                "timezone": "America/Los_Angeles",
+                "status": "open",
+                "reviewed": false,
+                "created_at": "2025-01-05T00:00:00Z",
+                "updated_at": "2025-01-05T00:00:00Z"\(extra)
+            }
+            """.data(using: .utf8)!
+        }
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+
+        let absent = try decoder.decode(Favor.self, from: json(""))
+        XCTAssertFalse(absent.isExample)
+        XCTAssertFalse(RequestItem.favor(absent).isExample)
+
+        let example = try decoder.decode(Favor.self, from: json(", \"is_example\": true"))
+        XCTAssertTrue(example.isExample)
+        XCTAssertTrue(RequestItem.favor(example).isExample)
+        XCTAssertNil(example.time)
+        XCTAssertEqual(example.duration, .coupleHours)
+    }
+}

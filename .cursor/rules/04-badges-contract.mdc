@@ -18,3 +18,5 @@ Rules:
 3) If RPC fails:
    - prefer cached/stale values with a “staleness” flag rather than a second aggregation logic path.
 
+
+4) The RPC also returns `pending_members_total`, `community_details` and `total`; decode them, do not recompute them on the client. The Profile badge reads `pending_members_total`; no client-side pending aggregation.

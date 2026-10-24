@@ -16,10 +16,13 @@ struct FavorDetailView: View {
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
+    @State private var communityContext = CommunityContext.shared
     @State private var guestPromptReason: GuestRestrictionReason?
     @State private var showEditFavor = false
     @State private var showDeleteAlert = false
     @State private var showClaimSheet = false
+    /// I Can Help on an example request: the plain example message instead of the claim sheet.
+    @State private var showExampleNotice = false
     @State private var showUnclaimSheet = false
     @State private var showCompleteSheet = false
     @State private var showReviewSheet = false
@@ -199,6 +202,12 @@ struct FavorDetailView: View {
                  ? "calendar_offer_favor_message_all_day".localized
                  : "calendar_offer_favor_message".localized)
         }
+        .alert("request_example_title".localized, isPresented: $showExampleNotice) {
+            Button("common_ok".localized, role: .cancel) {}
+                .accessibilityIdentifier("request.exampleNotice")
+        } message: {
+            Text("request_example_refused".localized)
+        }
         .sheet(isPresented: $showClaimSheet, onDismiss: {
             // Check calendar offer after sheet is fully dismissed so the alert can present
             if claimViewModel.lastClaimSucceeded {
@@ -211,7 +220,7 @@ struct FavorDetailView: View {
                     requestType: "favor",
                     requestTitle: favor.title,
                     onConfirm: {
-                        try await claimViewModel.claim(requestType: "favor", requestId: favor.id)
+                        try await claimViewModel.claim(requestType: "favor", requestId: favor.id, isExample: favor.isExample)
                         await viewModel.loadFavor(id: favorId)
                         claimViewModel.lastClaimSucceeded = true
                     }
@@ -302,6 +311,7 @@ struct FavorDetailView: View {
                 UserSearchView(
                     selectedUserIds: $selectedUserIds,
                     excludeUserIds: getExistingParticipantIds(favor: favor),
+                    communityId: favor.communityId,
                     onDismiss: {
                         // Copy the selection before it is cleared below; the task runs after
                         // this closure returns and used to read an already-empty set.
@@ -344,18 +354,29 @@ struct FavorDetailView: View {
                 HStack(alignment: .center, spacing: Constants.Spacing.md) {
                     if let poster = favor.poster {
                         UserAvatarLink(profile: poster, size: 60)
+                    } else {
+                        AvatarView(imageUrl: nil, name: "community_former_member".localized, size: 60)
                     }
                     
                     VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                        if favor.isExample {
+                            NaarsChip(text: "request_example_chip".localized, systemImage: "sparkles", tint: .naarsPrimary, size: .large)
+                                .accessibilityLabel("request_example_accessibility".localized)
+                                .accessibilityIdentifier("request.exampleChip")
+                        }
+
                         NaarsChip(text: favor.statusDisplayText, tint: favor.status.color, size: .large)
                             .id(RequestDetailAnchor.statusBadge.anchorId(for: .favor))
                             .requestHighlight(highlightedAnchor == .statusBadge)
-                        
-                        if let poster = favor.poster {
-                            Text("favor_detail_requested_by".localized(with: poster.name))
-                                .font(.naarsCaption)
-                                .foregroundColor(.secondary)
+
+                        if let communityText = communityContext.chipText(for: favor.communityId, respectingScope: true) {
+                            NaarsChip(text: communityText, tint: nil, size: .large)
+                                .accessibilityLabel("community_chip_accessibility".localized(with: communityText))
                         }
+                        
+                        Text("favor_detail_requested_by".localized(with: favor.poster?.name ?? "community_former_member".localized))
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
                     }
                     
                     Spacer()
@@ -518,6 +539,25 @@ struct FavorDetailView: View {
                                     .font(.naarsHeadline)
                             }
                             
+                            Spacer()
+                        }
+                    }
+                    .cardStyle()
+                    .id(RequestDetailAnchor.claimerCard.anchorId(for: .favor))
+                    .requestHighlight(highlightedAnchor == .claimerCard)
+                } else if favor.claimedBy != nil {
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("favor_detail_claimed_by".localized)
+                            .font(.naarsTitle3)
+                            .accessibilityAddTraits(.isHeader)
+
+                        HStack(spacing: 12) {
+                            AvatarView(imageUrl: nil, name: "community_former_member".localized, size: 50)
+
+                            Text("community_former_member".localized)
+                                .font(.naarsHeadline)
+                                .foregroundColor(.secondary)
+
                             Spacer()
                         }
                     }
@@ -793,16 +833,17 @@ struct FavorDetailView: View {
         let googleMapsWebUrl = URL(string: "\(Constants.URLs.googleMapsSearch)?api=1&query=\(location)")
         
         // Apple Maps via MKMapItem
-        let appleMapsOpen = {
-            let geocoder = CLGeocoder()
+        let appleMapsOpen: () -> Void = {
             Task {
                 do {
-                    let placemarks = try await geocoder.geocodeAddressString(favor.location)
-                    guard let placemark = placemarks.first else {
+                    guard let place = try await PlaceGeocoder.shared.place(forAddress: favor.location) else {
                         throw NSError(domain: "Maps", code: 1, userInfo: [NSLocalizedDescriptionKey: "Could not geocode address"])
                     }
                     
-                    let mapItem = MKMapItem(placemark: MKPlacemark(placemark: placemark))
+                    let mapItem = MKMapItem(
+                        location: CLLocation(latitude: place.point.latitude, longitude: place.point.longitude),
+                        address: MKAddress(fullAddress: favor.location, shortAddress: nil)
+                    )
                     mapItem.name = favor.title
                     
                     let launchOptions = [MKLaunchOptionsDirectionsModeKey: MKLaunchOptionsDirectionsModeDriving]
@@ -948,6 +989,12 @@ struct FavorDetailView: View {
                     action: {
                         switch buttonState {
                         case .canClaim:
+                            // An example is never claimed (the server refuses it too); say so
+                            // before the phone check and the claim sheet.
+                            if favor.isExample {
+                                showExampleNotice = true
+                                return
+                            }
                             Task {
                                 let canClaim = await claimViewModel.checkCanClaim()
                                 if canClaim {

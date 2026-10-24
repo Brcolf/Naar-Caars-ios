@@ -83,7 +83,7 @@ struct ProfileStatsCard: View {
             icon: "star.fill",
             iconColor: .naarsPrimary,
             value: rating.map { String(format: "%.1f", $0) } ?? "—",
-            label: rating != nil ? "Rating" : "No Rating",
+            label: rating != nil ? "profile_stat_rating".localized : "profile_stat_no_rating".localized,
             action: onRatingTap
         )
 
@@ -97,7 +97,7 @@ struct ProfileStatsCard: View {
                 icon: "dollarsign.circle.fill",
                 iconColor: .naarsSuccess,
                 value: formatSavings(savings),
-                label: "My Savings",
+                label: "profile_stat_savings".localized,
                 action: onSavingsTap
             )
 
@@ -109,7 +109,7 @@ struct ProfileStatsCard: View {
             icon: "checkmark.circle.fill",
             iconColor: .naarsSuccess,
             value: "\(fulfilledCount)",
-            label: "Fulfilled",
+            label: "profile_stat_fulfilled".localized,
             action: onFulfilledTap
         )
 
@@ -121,7 +121,7 @@ struct ProfileStatsCard: View {
                 icon: "bolt.fill",
                 iconColor: .naarsWarning,
                 value: "\(xpValue)",
-                label: "XP",
+                label: "profile_stat_xp".localized,
                 action: onXPTap
             )
         }

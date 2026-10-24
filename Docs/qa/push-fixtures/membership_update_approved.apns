@@ -1,0 +1,12 @@
+{
+  "aps": {
+    "alert": {
+      "title": "You're in",
+      "body": "Fixture: membership_update approved into a further community"
+    },
+    "sound": "default"
+  },
+  "type": "membership_update",
+  "membership_event": "approved",
+  "community_id": "<COMMUNITY_ID>"
+}

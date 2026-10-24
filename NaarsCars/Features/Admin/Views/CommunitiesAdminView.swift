@@ -1,0 +1,475 @@
+//
+//  CommunitiesAdminView.swift
+//  NaarsCars
+//
+//  Platform admins: every community (its area, test flag, merge and listing reason), archive and
+//  restore, public or private, owned-limit requests and merge proposals
+//
+
+import SwiftUI
+
+/// Admin → Communities. No NavigationStack: always pushed from the Admin panel.
+struct CommunitiesAdminView: View {
+    /// An action that runs only after the admin confirms it.
+    private struct PendingConfirmation: Identifiable {
+        let action: CommunityAdminAction
+        let community: PlatformCommunity
+        var id: String { "\(action)-\(community.id)" }
+    }
+
+    @StateObject private var viewModel: CommunitiesAdminViewModel
+    @State private var confirmation: PendingConfirmation?
+    @State private var requestsTarget: PendingMembersTarget?
+    /// The community whose Admin panel is open.
+    @State private var adminPanelTarget: UUID?
+
+    @MainActor init(viewModel: @autoclosure @escaping @MainActor () -> CommunitiesAdminViewModel = CommunitiesAdminViewModel()) {
+        _viewModel = StateObject(wrappedValue: viewModel())
+    }
+
+    var body: some View {
+        Group {
+            if viewModel.communities.isEmpty && viewModel.limitRequests.isEmpty && viewModel.mergeProposals.isEmpty {
+                if let loadError = viewModel.loadError {
+                    ErrorView(error: loadError) {
+                        Task { await viewModel.load() }
+                    }
+                } else if !viewModel.hasLoaded {
+                    skeleton
+                } else {
+                    EmptyStateView(
+                        icon: "building.2",
+                        title: "admin_communities_title".localized,
+                        message: "admin_communities_empty".localized
+                    )
+                }
+            } else {
+                list
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.naarsBackground)
+        .navigationTitle("admin_communities_title".localized)
+        .navigationBarTitleDisplayMode(.large)
+        .navigationDestination(item: $requestsTarget) { target in
+            PendingMembersView(target: target)
+        }
+        .navigationDestination(item: $adminPanelTarget) { communityId in
+            AdminPanelView(
+                scope: .community(communityId),
+                communityName: viewModel.communities.first(where: { $0.id == communityId })?.name,
+                onCommunityArchived: { viewModel.toastMessage = $0 }
+            )
+        }
+        .task { await viewModel.load() }
+        .alert(
+            confirmationTitle,
+            isPresented: Binding(get: { confirmation != nil }, set: { if !$0 { confirmation = nil } }),
+            presenting: confirmation
+        ) { pending in
+            Button("common_cancel".localized, role: .cancel) {}
+            Button(actionTitle(pending.action), role: .destructive) {
+                let action = pending.action
+                let community = pending.community
+                Task { await viewModel.perform(action, on: community) }
+            }
+            .accessibilityIdentifier("admin.communities.confirm")
+        } message: { pending in
+            Text(confirmationBody(pending.action))
+        }
+        .toast(message: $viewModel.toastMessage)
+        .errorBanner(message: $viewModel.actionErrorMessage)
+    }
+
+    // MARK: - List
+
+    private var list: some View {
+        ScrollView {
+            LazyVStack(alignment: .leading, spacing: Constants.Spacing.md) {
+                if !viewModel.limitRequests.isEmpty {
+                    sectionHeader("admin_communities_limit_requests".localized)
+                    ForEach(viewModel.limitRequests) { request in
+                        limitRequestCard(request)
+                    }
+                    sectionHeader("admin_communities_title".localized)
+                        .padding(.top, Constants.Spacing.sm)
+                }
+                ForEach(viewModel.communities) { community in
+                    communityCard(community)
+                }
+                if !viewModel.mergeProposals.isEmpty {
+                    sectionHeader("admin_communities_merges_section".localized)
+                        .padding(.top, Constants.Spacing.sm)
+                    ForEach(viewModel.mergeProposals) { proposal in
+                        mergeProposalCard(proposal)
+                    }
+                }
+            }
+            .padding()
+        }
+        .refreshable { await viewModel.load() }
+        .accessibilityIdentifier("admin.communities.list")
+    }
+
+    private func sectionHeader(_ title: String) -> some View {
+        Text(title)
+            .font(.naarsTitle3)
+            .foregroundColor(.naarsTextPrimary)
+            .accessibilityAddTraits(.isHeader)
+    }
+
+    // MARK: - Limit requests
+
+    private func limitRequestCard(_ request: PlatformLimitRequest) -> some View {
+        let isBusy = viewModel.busyId == request.id
+        let isDisabled = viewModel.busyId != nil
+        return VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+            VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                Text(String(
+                    format: "admin_communities_limit_row".localized,
+                    request.userName ?? "—",
+                    request.requestedMax,
+                    request.currentMax,
+                    request.ownedCount
+                ))
+                .font(.naarsHeadline)
+                .foregroundColor(.naarsTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+                Text(request.reason)
+                    .font(.naarsSubheadline)
+                    .foregroundColor(.naarsTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            .accessibilityElement(children: .combine)
+
+            ViewThatFits(in: .horizontal) {
+                HStack(spacing: Constants.Spacing.md) { limitButtons(request, isBusy: isBusy, isDisabled: isDisabled) }
+                VStack(spacing: Constants.Spacing.sm) { limitButtons(request, isBusy: isBusy, isDisabled: isDisabled) }
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardStyle()
+        .accessibilityIdentifier("admin.communities.limitRequest")
+    }
+
+    @ViewBuilder
+    private func limitButtons(_ request: PlatformLimitRequest, isBusy: Bool, isDisabled: Bool) -> some View {
+        SecondaryButton(
+            title: "admin_communities_decline".localized,
+            action: { Task { await viewModel.decide(request, approve: false) } },
+            isDisabled: isDisabled,
+            isDestructive: true
+        )
+        .accessibilityIdentifier("admin.communities.limitDecline")
+        PrimaryButton(
+            title: "admin_communities_approve".localized,
+            action: { Task { await viewModel.decide(request, approve: true) } },
+            isLoading: isBusy,
+            isDisabled: isDisabled
+        )
+        .accessibilityIdentifier("admin.communities.limitApprove")
+    }
+
+    // MARK: - Communities
+
+    private func communityCard(_ community: PlatformCommunity) -> some View {
+        let actions = CommunitiesAdminViewModel.actions(for: community)
+        return HStack(alignment: .top, spacing: Constants.Spacing.md) {
+            VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+                Text(community.name)
+                    .font(.naarsHeadline)
+                    .foregroundColor(.naarsTextPrimary)
+                    .lineLimit(3)
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: Constants.Spacing.xs) { chips(community) }
+                    VStack(alignment: .leading, spacing: Constants.Spacing.xs) { chips(community) }
+                }
+                Text(String(format: "admin_communities_members".localized, community.memberCount, community.pendingCount))
+                    .font(.naarsFootnote)
+                    .foregroundColor(.naarsTextSecondary)
+                listingDetails(community)
+                Text(String(
+                    format: "admin_communities_created_by".localized,
+                    community.creatorName ?? "—",
+                    community.createdAt.formatted(date: .abbreviated, time: .omitted)
+                ))
+                .font(.naarsFootnote)
+                .foregroundColor(.naarsTextSecondary)
+                .fixedSize(horizontal: false, vertical: true)
+            }
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .accessibilityElement(children: .combine)
+
+            if !actions.isEmpty {
+                Menu {
+                    menuItems(actions, for: community)
+                } label: {
+                    menuLabel(community)
+                }
+                .disabled(viewModel.busyId != nil)
+                .accessibilityLabel(String(format: "community_actions_accessibility".localized, community.name))
+                .accessibilityIdentifier("admin.communities.actions")
+            }
+        }
+        .cardStyle()
+        .accessibilityIdentifier("admin.communities.row")
+    }
+
+    /// The area, where the community went in a merge, and the latest listing event's reason and overlaps.
+    @ViewBuilder
+    private func listingDetails(_ community: PlatformCommunity) -> some View {
+        if let area = community.area {
+            detailLine(String(format: "admin_communities_area".localized, area.name, area.radiusMiles))
+        }
+        if let mergedIntoName = community.mergedIntoName {
+            detailLine(String(format: "admin_communities_merged_into".localized, mergedIntoName))
+        }
+        if let reason = community.listingReason, !reason.isEmpty {
+            detailLine(String(format: "admin_communities_reason".localized, reason))
+        }
+        if !community.listingOverlaps.isEmpty {
+            detailLine(String(
+                format: "admin_communities_overlaps".localized,
+                ListFormatter.localizedString(byJoining: community.listingOverlaps)
+            ))
+        }
+    }
+
+    private func detailLine(_ text: String) -> some View {
+        Text(text)
+            .font(.naarsFootnote)
+            .foregroundColor(.naarsTextSecondary)
+            .fixedSize(horizontal: false, vertical: true)
+    }
+
+    @ViewBuilder
+    private func chips(_ community: PlatformCommunity) -> some View {
+        if community.isDefault {
+            NaarsChip(text: "admin_communities_default_chip".localized, systemImage: "star.fill")
+        }
+        if community.isTest {
+            NaarsChip(text: "admin_communities_test_chip".localized, systemImage: "testtube.2", tint: nil)
+        }
+        if community.isPublic {
+            NaarsChip(text: "admin_communities_public_chip".localized, systemImage: "globe", tint: nil)
+        }
+        if community.archivedAt != nil {
+            NaarsChip(text: "admin_communities_archived_chip".localized, systemImage: "archivebox", tint: nil)
+        }
+        if community.ownerCount == 0 {
+            NaarsChip(text: "admin_communities_no_owner_chip".localized, systemImage: "person.crop.circle.badge.questionmark", tint: nil)
+        }
+        if community.openReportCount > 0 {
+            NaarsChip(
+                text: String(format: "admin_communities_reported_chip".localized, community.openReportCount),
+                systemImage: "flag.fill",
+                tint: .naarsWarning
+            )
+        }
+    }
+
+    // MARK: - Merge proposals
+
+    /// One proposal: "<merged> into <survivor>", its status, when it was made and when it expires or
+    /// was decided, and the proposer's note.
+    private func mergeProposalCard(_ proposal: PlatformMergeProposal) -> some View {
+        VStack(alignment: .leading, spacing: Constants.Spacing.xs) {
+            Text(String(format: "admin_communities_merge_row".localized, proposal.mergedName, proposal.survivorName))
+                .font(.naarsHeadline)
+                .foregroundColor(.naarsTextPrimary)
+                .fixedSize(horizontal: false, vertical: true)
+            NaarsChip(
+                text: CommunitiesAdminViewModel.mergeStatusText(proposal.status),
+                systemImage: "arrow.triangle.merge",
+                tint: proposal.status == "pending" ? .naarsWarning : nil
+            )
+            detailLine(mergeDates(proposal))
+            if let note = proposal.note, !note.isEmpty {
+                Text(note)
+                    .font(.naarsSubheadline)
+                    .foregroundColor(.naarsTextSecondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .cardStyle()
+        .accessibilityElement(children: .combine)
+        .accessibilityIdentifier("admin.communities.mergeRow")
+    }
+
+    /// The day it was proposed, then its expiry while pending, else the day it was decided.
+    private func mergeDates(_ proposal: PlatformMergeProposal) -> String {
+        let created = proposal.createdAt.formatted(date: .abbreviated, time: .omitted)
+        if proposal.status == "pending" {
+            let expires = String(format: "community_merge_expires".localized, proposal.expiresAt.formatted(date: .abbreviated, time: .omitted))
+            return created + " · " + expires
+        }
+        guard let decidedAt = proposal.decidedAt else { return created }
+        return created + " · " + decidedAt.formatted(date: .abbreviated, time: .omitted)
+    }
+
+    @ViewBuilder
+    private func menuItems(_ actions: [CommunityAdminAction], for community: PlatformCommunity) -> some View {
+        ForEach(actions, id: \.self) { action in
+            switch action {
+            case .openAdminPanel:
+                Button {
+                    adminPanelTarget = community.id
+                } label: {
+                    Label(actionTitle(action), systemImage: systemImage(action))
+                }
+                .accessibilityIdentifier("admin.communities.openPanel")
+            case .requestsToJoin:
+                Button {
+                    requestsTarget = .community(community.id, name: community.name)
+                } label: {
+                    Label(
+                        "\("admin_communities_requests".localized) (\(community.pendingCount))",
+                        systemImage: "person.badge.clock"
+                    )
+                }
+            case .archive, .makePrivate:
+                // Both reach every member or every guest at once: always confirmed first.
+                Button(role: action == .archive ? .destructive : nil) {
+                    confirmation = PendingConfirmation(action: action, community: community)
+                } label: {
+                    Label(actionTitle(action), systemImage: systemImage(action))
+                }
+            case .restore, .makePublic:
+                Button {
+                    Task { await viewModel.perform(action, on: community) }
+                } label: {
+                    Label(actionTitle(action), systemImage: systemImage(action))
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func menuLabel(_ community: PlatformCommunity) -> some View {
+        if viewModel.busyId == community.id {
+            ProgressView()
+                .frame(minWidth: 44, minHeight: 44)
+        } else {
+            Image(systemName: "ellipsis.circle")
+                .font(.naarsTitle3)
+                .foregroundColor(.naarsPrimary)
+                .frame(minWidth: 44, minHeight: 44)
+        }
+    }
+
+    private var skeleton: some View {
+        ScrollView {
+            VStack(spacing: Constants.Spacing.md) {
+                ForEach(0..<3, id: \.self) { _ in
+                    VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+                        SkeletonRectangle(width: 180, height: 16)
+                        SkeletonRectangle(width: 120, height: 20, cornerRadius: Constants.Radius.button)
+                        SkeletonRectangle(width: 150, height: 12)
+                    }
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .cardStyle()
+                }
+            }
+            .padding()
+        }
+        .disabled(true)
+        .accessibilityHidden(true)
+    }
+
+    // MARK: - Copy
+
+    private func actionTitle(_ action: CommunityAdminAction) -> String {
+        switch action {
+        case .requestsToJoin: return "admin_communities_requests".localized
+        case .archive: return "admin_communities_archive".localized
+        case .restore: return "admin_communities_restore".localized
+        case .makePrivate: return "admin_communities_make_private".localized
+        case .makePublic: return "admin_communities_make_public".localized
+        case .openAdminPanel: return "admin_communities_open_panel".localized
+        }
+    }
+
+    private func systemImage(_ action: CommunityAdminAction) -> String {
+        switch action {
+        case .requestsToJoin: return "person.badge.clock"
+        case .archive: return "archivebox"
+        case .restore: return "arrow.uturn.backward"
+        case .makePrivate: return "lock"
+        case .makePublic: return "globe"
+        case .openAdminPanel: return "shield"
+        }
+    }
+
+    private var confirmationTitle: String {
+        guard let confirmation else { return "" }
+        let key = confirmation.action == .archive ? "admin_communities_archive_title" : "admin_communities_make_private_title"
+        return String(format: key.localized, confirmation.community.name)
+    }
+
+    private func confirmationBody(_ action: CommunityAdminAction) -> String {
+        action == .archive
+            ? "admin_communities_archive_body".localized
+            : "admin_communities_make_private_body".localized
+    }
+}
+
+#if DEBUG
+#Preview("List with a limit request") {
+    NavigationStack {
+        CommunitiesAdminView(viewModel: CommunitiesAdminViewModel(adminService: PreviewCommunityService()))
+    }
+}
+
+#Preview("Area, test row and a merge proposal") {
+    let service = PreviewCommunityService()
+    let created = Date(timeIntervalSince1970: 1_790_000_000)
+    service.platformCommunities = PlatformCommunities(
+        communities: [
+            PlatformCommunity(
+                id: UUID(), name: "Harbor Riders", description: nil, createdBy: UUID(), creatorName: "Sam Neighbor",
+                createdAt: created, isPublic: true, isDefault: false, joinPolicy: "approve", archivedAt: nil, archivedBy: nil,
+                memberCount: 14, pendingCount: 1, ownerCount: 2, openReportCount: 0,
+                area: PreviewCommunityService.sampleArea, listingReason: "Parents of one school",
+                listingOverlaps: ["Test Community", "Ballard Neighbors"], listingEventAt: created
+            ),
+            PlatformCommunity(
+                id: UUID(), name: "Test Public A", description: nil, createdBy: UUID(), creatorName: "Lee Park",
+                createdAt: created, isPublic: true, isDefault: false, joinPolicy: "open", archivedAt: nil, archivedBy: nil,
+                memberCount: 2, pendingCount: 0, ownerCount: 1, openReportCount: 0,
+                area: PreviewCommunityService.sampleArea, isTest: true
+            ),
+            PlatformCommunity(
+                id: UUID(), name: "Fremont Porch Club", description: nil, createdBy: UUID(), creatorName: "Pat Quinn",
+                createdAt: created, isPublic: false, isDefault: false, joinPolicy: "invite",
+                archivedAt: created.addingTimeInterval(86_400), archivedBy: nil,
+                memberCount: 0, pendingCount: 0, ownerCount: 0, openReportCount: 0, mergedIntoName: "Harbor Riders"
+            )
+        ],
+        limitRequests: [],
+        mergeProposals: [
+            PlatformMergeProposal(
+                id: UUID(), fromName: "Ballard Neighbors", toName: "Harbor Riders", survivorName: "Harbor Riders",
+                status: "pending", note: "We cover the same streets.", createdAt: created,
+                expiresAt: created.addingTimeInterval(7 * 86_400), decidedAt: nil
+            ),
+            PlatformMergeProposal(
+                id: UUID(), fromName: "Fremont Porch Club", toName: "Harbor Riders", survivorName: "Harbor Riders",
+                status: "accepted", note: nil, createdAt: created,
+                expiresAt: created.addingTimeInterval(7 * 86_400), decidedAt: created.addingTimeInterval(86_400)
+            )
+        ]
+    )
+    return NavigationStack {
+        CommunitiesAdminView(viewModel: CommunitiesAdminViewModel(adminService: service))
+    }
+}
+
+#Preview("Empty") {
+    let service = PreviewCommunityService()
+    service.platformCommunities = PlatformCommunities(communities: [], limitRequests: [])
+    return NavigationStack {
+        CommunitiesAdminView(viewModel: CommunitiesAdminViewModel(adminService: service))
+    }
+}
+#endif

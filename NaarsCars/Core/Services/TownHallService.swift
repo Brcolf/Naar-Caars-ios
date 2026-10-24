@@ -6,6 +6,7 @@
 //
 
 import Foundation
+import os
 import Supabase
 
 /// Service for town hall operations
@@ -20,7 +21,14 @@ final class TownHallService {
     
     private let supabase = SupabaseService.shared.client
     private let rateLimiter = RateLimiter.shared
-    
+    /// Joins identical page reads that overlap (see `fetchPostsPage`).
+    private let pageRequests = RequestDeduplicator()
+    /// The authors whose posts the page read leaves out. Read on the caller's executor after the
+    /// shared fetch returns, never inside it (see `fetchPostsPage`). Internal so tests can stand in.
+    var blockedAuthorIds: () -> Set<UUID> = { MessageService.shared.cachedBlockedUserIds }
+    /// Counts Town Hall writes; part of the page key (see `fetchPostsPage` and `noteWrite()`).
+    private let writeEpoch = OSAllocatedUnfairLock(initialState: 0)
+
     // MARK: - Initialization
     
     private init() {}
@@ -40,31 +48,65 @@ final class TownHallService {
     /// Same fetch as `fetchPosts`, plus the number of rows the server returned before posts by
     /// blocked authors were filtered out. Paging has to advance and stop on `serverCount`: a page
     /// that lost one post to the block filter is short, but it is not the last page.
-    func fetchPostsPage(limit: Int = 20, offset: Int = 0) async throws -> (posts: [TownHallPost], serverCount: Int) {
-        let response = try await supabase
+    ///
+    /// A nil `communityId` means "no community filter": RLS still returns only the caller's
+    /// communities. A non-nil id adds `community_id = id` to the query.
+    ///
+    /// On every Community visit the Town Hall sync (`TownHallSyncEngine.performFullSync`) and the
+    /// feed's enrichment fetch (`TownHallFeedViewModel.refreshFromNetwork`) ask for the same first
+    /// page at the same moment. An identical call made while one is in flight waits for it and
+    /// gets the same result, instead of a second page read plus its four enrichment reads. The key
+    /// holds the user, so a read never serves another account across a sign-out. It also holds the
+    /// write count, so a read that starts after a Town Hall write (a vote, a post, a comment) never
+    /// joins one that started before it and would return the counts from before the write.
+    ///
+    /// The shared fetch runs on the deduplicator's task, off the main thread, so it returns the
+    /// posts unfiltered. Posts by blocked authors are removed here, after it returns, on the
+    /// caller's executor (the main actor for every caller), because `MessageService` writes
+    /// `cachedBlockedUserIds` on the main actor. Each joined caller filters with the set current
+    /// when its own call returns.
+    func fetchPostsPage(limit: Int = 20, offset: Int = 0, communityId: UUID? = nil) async throws -> (posts: [TownHallPost], serverCount: Int) {
+        let userId = AuthService.shared.currentUserId
+        let epoch = writeEpoch.withLock { $0 }
+        let key = "townHallPostsPage:\(epoch):\(limit):\(offset):\(communityId?.uuidString ?? "all"):\(userId?.uuidString ?? "none")"
+        let page = try await pageRequests.fetch(key: key) { [self] in
+            try await self.fetchPostsPageFromServer(limit: limit, offset: offset, communityId: communityId, userId: userId)
+        }
+        let blockedIds = blockedAuthorIds()
+        guard !blockedIds.isEmpty else { return page }
+        return (page.posts.filter { !blockedIds.contains($0.userId) }, page.serverCount)
+    }
+
+    /// One page with its enrichment, not filtered for blocked authors (`fetchPostsPage` does that).
+    private func fetchPostsPageFromServer(limit: Int, offset: Int, communityId: UUID?, userId: UUID?) async throws -> (posts: [TownHallPost], serverCount: Int) {
+        var query = supabase
             .from("town_hall_posts")
             .select()
+        if let communityId {
+            query = query.eq("community_id", value: communityId.uuidString)
+        }
+        let response = try await query
             .order("created_at", ascending: false)
             .range(from: offset, to: offset + limit - 1)
             .execute()
 
-        // Decode posts with custom date decoder
-        let decoder = createDateDecoder()
-        var posts: [TownHallPost] = try decoder.decode([TownHallPost].self, from: response.data)
+        // Decode posts with custom date decoder, off the caller's actor
+        var posts: [TownHallPost] = try await Self.decodePosts(response.data)
         let serverCount = posts.count
 
         // Enrich with author profiles, vote counts, comment counts, and review data.
         // The lookups only depend on this page of posts, so they run concurrently.
-        posts = await enrichPosts(posts, userId: AuthService.shared.currentUserId)
-        
-        // Filter out posts from blocked users
-        let blockedIds = MessageService.shared.cachedBlockedUserIds
-        if !blockedIds.isEmpty {
-            posts = posts.filter { !blockedIds.contains($0.userId) }
-        }
+        posts = await enrichPosts(posts, userId: userId)
 
         AppLogger.info("townhall", "Fetched \(posts.count) posts from network")
         return (posts, serverCount)
+    }
+
+    /// Every Town Hall write calls this when it returns, success or not (a write that threw may
+    /// still have reached the server): this service's, `TownHallCommentService`'s and
+    /// `TownHallVoteService`'s. A page read keyed before it is then never joined after it.
+    func noteWrite() {
+        writeEpoch.withLock { $0 &+= 1 }
     }
 
     /// Fetch the town hall post ID associated with a review
@@ -88,15 +130,27 @@ final class TownHallService {
     }
     
     /// Fetch a single town hall post by ID for targeted refresh.
-    func fetchPost(id: UUID) async throws -> TownHallPost {
-        let response: TownHallPost = try await supabase
+    ///
+    /// Zero-row tolerant: returns nil when the post is not readable (hidden, deleted, in a
+    /// community the caller is not in, a forwarded push) or is by a blocked author, the same
+    /// posts the page fetch leaves out. Throws only on a transport or decoding failure, so an
+    /// unreadable post never puts the `.townHall` domain into backoff.
+    /// The post is enriched like a page post, so a targeted upsert keeps the cached author
+    /// name and comment count instead of overwriting them with nil and 0.
+    func fetchPost(id: UUID) async throws -> TownHallPost? {
+        let response = try await supabase
             .from("town_hall_posts")
             .select()
             .eq("id", value: id.uuidString)
-            .single()
+            .limit(1)
             .execute()
-            .value
-        return response
+
+        let rows = try await Self.decodePosts(response.data)
+        guard let post = rows.first else { return nil }
+        if MessageService.shared.cachedBlockedUserIds.contains(post.userId) {
+            return nil
+        }
+        return await enrichPosts([post], userId: AuthService.shared.currentUserId).first
     }
 
     // MARK: - Create Post
@@ -108,7 +162,8 @@ final class TownHallService {
     ///   - imageUrl: Optional image URL
     /// - Returns: Created post
     /// - Throws: AppError if creation fails or rate limited
-    func createPost(userId: UUID, content: String, imageUrl: String? = nil) async throws -> TownHallPost {
+    func createPost(userId: UUID, content: String, imageUrl: String? = nil, communityId: UUID? = nil) async throws -> TownHallPost {
+        defer { noteWrite() }
         // Validate content length
         guard content.count <= 500 else {
             throw AppError.invalidInput("Post content must be 500 characters or less")
@@ -138,7 +193,8 @@ final class TownHallService {
             content: trimmedContent,
             imageUrl: imageUrl,
             title: title,
-            type: nil // Not stored in database
+            type: nil, // Not stored in database
+            communityId: communityId
         )
         
         let response = try await supabase
@@ -170,6 +226,7 @@ final class TownHallService {
     /// - Returns: Created post
     /// - Throws: AppError if creation fails
     func createSystemPost(userId: UUID, content: String, type: PostType) async throws -> TownHallPost {
+        defer { noteWrite() }
         // Generate title from content for system posts
         let title = generateTitle(from: content)
         
@@ -207,6 +264,7 @@ final class TownHallService {
     ///   - userId: User ID attempting to delete (must be author)
     /// - Throws: AppError if deletion fails or user is not author
     func deletePost(postId: UUID, userId: UUID) async throws {
+        defer { noteWrite() }
         // Verify user is the author
         let response = try await supabase
             .from("town_hall_posts")
@@ -247,6 +305,7 @@ final class TownHallService {
     ///   - voteType: Vote type (nil to remove vote)
     /// - Throws: AppError if vote operation fails
     func votePost(postId: UUID, userId: UUID, voteType: VoteType?) async throws {
+        defer { noteWrite() }
         // Check if user already voted on this post
         let existingVoteResponse = try? await supabase
             .from("town_hall_votes")
@@ -522,5 +581,15 @@ final class TownHallService {
     private func createDateDecoder() -> JSONDecoder {
         DateDecoderFactory.makeMessagingDecoder()
     }
+
+    /// Decodes `town_hall_posts` rows on the concurrent pool. A nonisolated async method runs on
+    /// its caller's executor (Approachable Concurrency), and the page and single-post fetches are
+    /// called from `@MainActor` (`TownHallSyncEngine`, `TownHallFeedViewModel`), so an inline
+    /// decode would run on the main thread.
+    @concurrent
+    private static func decodePosts(_ data: Data) async throws -> sending [TownHallPost] {
+        try DateDecoderFactory.makeMessagingDecoder().decode([TownHallPost].self, from: data)
+    }
 }
 
+extension TownHallService: TownHallPostFetching {}

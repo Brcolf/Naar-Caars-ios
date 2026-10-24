@@ -77,6 +77,8 @@ final class TownHallCommentService {
     /// - Returns: Created comment
     /// - Throws: AppError if creation fails or rate limited
     func createComment(postId: UUID, userId: UUID, content: String) async throws -> TownHallComment {
+        // A page read that started before this write is not joined by one after it.
+        defer { TownHallService.shared.noteWrite() }
         // Validate content
         guard !content.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else {
             throw AppError.invalidInput("Comment content cannot be empty")
@@ -144,6 +146,8 @@ final class TownHallCommentService {
     /// - Returns: Created reply comment
     /// - Throws: AppError if creation fails or rate limited
     func createReply(parentCommentId: UUID, userId: UUID, content: String) async throws -> TownHallComment {
+        // A page read that started before this write is not joined by one after it.
+        defer { TownHallService.shared.noteWrite() }
         // First, get the parent comment to find the postId
         let parentResponse = try await supabase
             .from("town_hall_comments")
@@ -231,6 +235,8 @@ final class TownHallCommentService {
     ///   - userId: User ID attempting to delete (must be author)
     /// - Throws: AppError if deletion fails or user is not author
     func deleteComment(commentId: UUID, userId: UUID) async throws {
+        // A page read that started before this write is not joined by one after it.
+        defer { TownHallService.shared.noteWrite() }
         // Verify user is the author
         let response = try await supabase
             .from("town_hall_comments")
@@ -271,6 +277,8 @@ final class TownHallCommentService {
     ///   - voteType: Vote type (nil to remove vote)
     /// - Throws: AppError if vote operation fails
     func voteComment(commentId: UUID, userId: UUID, voteType: VoteType?) async throws {
+        // A page read that started before this write is not joined by one after it.
+        defer { TownHallService.shared.noteWrite() }
         // Check if user already voted on this comment
         let existingVoteResponse = try? await supabase
             .from("town_hall_votes")

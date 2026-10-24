@@ -19,6 +19,9 @@ struct AdminReport: Codable, Identifiable, Equatable {
     let reportedCommentId: UUID?
     let reportedRideId: UUID?
     let reportedFavorId: UUID?
+    /// Sent only by an `admin_get_reports` that knows community reports (target type "community");
+    /// absent from today's server, which decodes as nil.
+    let reportedCommunityId: UUID?
     let targetType: String
     let reportType: String
     let description: String?
@@ -36,9 +39,21 @@ struct AdminReport: Codable, Identifiable, Equatable {
     }
 
     var isPost: Bool { reportedPostId != nil }
+
+    /// A report about a community (`report_community`). Today's `admin_get_reports` has no
+    /// community case, so such a row comes back as target "user" with no member; a member report
+    /// always names its member (reports about a deleted account are deleted with it).
+    var isCommunityReport: Bool {
+        targetType == "community" || reportedCommunityId != nil || (targetType == "user" && reportedUserId == nil)
+    }
+
+    /// Only a server that returns the "community" target can dismiss one: today's
+    /// `admin_moderate_content` logs the dismissal with no target id, which the moderation log refuses.
+    var canDismissCommunityReport: Bool { targetType == "community" }
     var isComment: Bool { reportedCommentId != nil }
 
     var contentTypeLocalizationKey: String {
+        if isCommunityReport { return "admin_reports_target_community" }
         switch targetType {
         case "message":
             return "admin_reports_target_message"
@@ -56,6 +71,7 @@ struct AdminReport: Codable, Identifiable, Equatable {
     }
 
     var contentTypeSystemImageName: String {
+        if isCommunityReport { return "person.3.fill" }
         switch targetType {
         case "message":
             return "message.fill"

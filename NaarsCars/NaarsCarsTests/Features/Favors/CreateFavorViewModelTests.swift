@@ -52,9 +52,79 @@ final class CreateFavorViewModelTests: XCTestCase {
             XCTAssertTrue(true, "Create favor attempted (expected behavior)")
         }
     }
+
+    // MARK: - "Post to" after a late membership load
+
+    /// The form opened with one membership; a second arriving later changes the signature the
+    /// view watches, and re-running the choice brings up "Post to" with the default selected.
+    func testCommunityChoice_MembershipsArrivingLater_ShowPostTo() {
+        let suiteName = "CreateFavorViewModelTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let context = CommunityContext(service: StubCommunityService(result: .success([])), defaults: defaults)
+        context.debugSetMemberships([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "A", isPrimary: true)
+        ])
+        let viewModel = CreateFavorViewModel(communityContext: context)
+        viewModel.configureCommunityChoice()
+        XCTAssertFalse(viewModel.requiresCommunityChoice)
+        let before = viewModel.communityChoiceSignature
+
+        context.debugSetMemberships([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "A", isPrimary: true),
+            CommunityFixtures.membership(CommunityFixtures.communityB, name: "B")
+        ])
+        XCTAssertNotEqual(viewModel.communityChoiceSignature, before)
+        viewModel.configureCommunityChoice()
+
+        XCTAssertTrue(viewModel.requiresCommunityChoice)
+        XCTAssertEqual(viewModel.selectedCommunityId, CommunityFixtures.communityA)
+    }
+
+    // MARK: - Community time zone default
+
+    private func favorContext(_ rows: [CommunityMembership]) -> (CommunityContext, UserDefaults, String) {
+        let suiteName = "CreateFavorViewModelTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        let context = CommunityContext(service: StubCommunityService(result: .success([])), defaults: defaults)
+        context.debugSetMemberships(rows)
+        return (context, defaults, suiteName)
+    }
+
+    func testNewFavor_DefaultsToTheCommunityTimeZone() {
+        let (context, defaults, suite) = favorContext([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "A", isPrimary: true, timezone: "America/Denver")
+        ])
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let vm = CreateFavorViewModel(communityContext: context)
+        vm.configureCommunityChoice()
+        XCTAssertEqual(vm.timezone, "America/Denver")
+    }
+
+    func testNewFavor_SwitchingCommunityMovesAnUntouchedTimeZone() {
+        let (context, defaults, suite) = favorContext([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "A", isPrimary: true, timezone: "America/Denver"),
+            CommunityFixtures.membership(CommunityFixtures.communityB, name: "B", timezone: "America/New_York")
+        ])
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let vm = CreateFavorViewModel(communityContext: context)
+        vm.configureCommunityChoice()
+        XCTAssertEqual(vm.timezone, "America/Denver")
+        vm.selectedCommunityId = CommunityFixtures.communityB
+        XCTAssertEqual(vm.timezone, "America/New_York")
+    }
+
+    func testNewFavor_KeepsATimeZoneThePersonChose() {
+        let (context, defaults, suite) = favorContext([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "A", isPrimary: true, timezone: "America/Denver"),
+            CommunityFixtures.membership(CommunityFixtures.communityB, name: "B", timezone: "America/New_York")
+        ])
+        defer { defaults.removePersistentDomain(forName: suite) }
+        let vm = CreateFavorViewModel(communityContext: context)
+        vm.configureCommunityChoice()
+        vm.chooseTimezone("America/Chicago")
+        vm.selectedCommunityId = CommunityFixtures.communityB
+        XCTAssertEqual(vm.timezone, "America/Chicago")
+        XCTAssertTrue(vm.didChooseTimezone)
+    }
 }
-
-
-
-
-

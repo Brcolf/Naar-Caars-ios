@@ -11,6 +11,7 @@ import SwiftUI
 struct TownHallFeedView: View {
     @StateObject private var viewModel = TownHallFeedViewModel()
     @State private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var communityContext = CommunityContext.shared
     @Environment(AppState.self) private var appState
     @State private var showCreatePost = false
     @State private var guestPromptReason: GuestRestrictionReason?
@@ -20,10 +21,31 @@ struct TownHallFeedView: View {
     /// A comment was added or deleted in the sheet opened from a notification or deep link.
     @State private var openedCommentsChanged = false
     @State private var toastMessage: String? = nil
+    /// Failures shown as a toast use the warning style, never the success one.
+    @State private var warningToastMessage: String? = nil
 
     var body: some View {
         mainContent
             .toolbar {
+                // A guest can report the community they are browsing; Report asks them to sign in
+                // (A2). A signed-in person reports their communities from My communities.
+                if appState.isGuest {
+                    ToolbarItem(placement: .navigationBarLeading) {
+                        Menu {
+                            Button {
+                                guestPromptReason = .reportContent
+                            } label: {
+                                Label("community_report_this_community".localized, systemImage: "flag")
+                            }
+                            .accessibilityIdentifier("community.townHall.reportCommunity")
+                        } label: {
+                            Image(systemName: "ellipsis.circle")
+                                .font(.naarsTitle3)
+                        }
+                        .accessibilityLabel("community_more_actions".localized)
+                        .accessibilityIdentifier("community.townHall.more")
+                    }
+                }
                 ToolbarItem(placement: .navigationBarTrailing) {
                     Button {
                         if appState.isGuest {
@@ -61,7 +83,35 @@ struct TownHallFeedView: View {
             .task {
                 await viewModel.loadPosts()
             }
+            // The title menu's switch and the launch membership load (nil to a community) both land here.
+            .onChange(of: communityContext.communityTabId) { _, _ in
+                Task { await viewModel.activeCommunityDidChange() }
+            }
+            // initial: true also consumes a target that was set before this view existed (cold-start
+            // push tap, first visit to the tab, Leaderboard segment showing). The intent is consumed
+            // here, in the same pass, and the ViewModel owns the community switch and the resolution.
+            .onChange(of: navigationCoordinator.pendingIntent, initial: true) { _, _ in
+                if let target = navigationCoordinator.consumeTownHallNavigationTarget() {
+                    Task { await viewModel.open(target) }
+                }
+            }
+            // The two actions that do not need the list; the scroll actions are handled by postsListView.
+            .onChange(of: viewModel.pendingFeedAction, initial: true) { _, action in
+                switch action {
+                case .openComments(let postId):
+                    openCommentsTarget = .init(id: postId)
+                    viewModel.consumeFeedAction()
+                case .unavailable:
+                    warningToastMessage = "moderation_content_unavailable".localized
+                    viewModel.consumeFeedAction()
+                case .scrollAndOpenComments, .scrollAndHighlight, nil:
+                    break
+                }
+            }
             .toast(message: $toastMessage)
+            .toast(message: $warningToastMessage, style: .warning)
+            // "Now in <community>" after a push, bell row or link switched the community.
+            .toast(message: $viewModel.communitySwitchNotice, style: .info)
             // A failed vote, delete, next page or refresh keeps the loaded posts on screen.
             .errorBanner(message: $viewModel.bannerMessage)
             .trackScreen("TownHallFeed")
@@ -167,11 +217,17 @@ struct TownHallFeedView: View {
                 await viewModel.refreshPosts()
             }
             .background(Color.naarsBackground)
-            // initial: true also consumes a target that was set before this list existed (cold-start
-            // push tap, first visit to the tab, Leaderboard segment showing, feed still loading);
-            // onChange alone never fires for a value that is already there.
-            .onChange(of: navigationCoordinator.pendingIntent, initial: true) { _, intent in
-                guard case .townHallPost(let postId, let mode) = intent else { return }
+            // initial: true also performs an action published before this list existed (the post
+            // arrived in the same update that showed the list); onChange alone never fires for a
+            // value that is already there.
+            .onChange(of: viewModel.pendingFeedAction, initial: true) { _, action in
+                let postId: UUID
+                switch action {
+                case .scrollAndOpenComments(let id), .scrollAndHighlight(let id):
+                    postId = id
+                case .openComments, .unavailable, nil:
+                    return
+                }
                 let anchorId = "community.townHall.postCard(\(postId))"
                 // One main-actor turn later: on the initial pass the list has not been laid out
                 // yet and a scroll requested now can be dropped.
@@ -181,14 +237,13 @@ struct TownHallFeedView: View {
                     }
                 }
 
-                switch mode {
-                case .openComments:
+                if case .scrollAndOpenComments = action {
                     openCommentsTarget = .init(id: postId)
-                case .highlightPost:
+                } else {
                     highlightPost(postId)
                 }
 
-                navigationCoordinator.pendingIntent = nil
+                viewModel.consumeFeedAction()
             }
         }
     }

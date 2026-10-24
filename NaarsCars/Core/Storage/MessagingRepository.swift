@@ -114,7 +114,23 @@ final class MessagingRepository {
                 )
                 var msgFetch = msgDescriptor
                 msgFetch.fetchLimit = 1
-                let lastSDMessage = (try? modelContext.fetch(msgFetch))?.first
+                var lastSDMessage = (try? modelContext.fetch(msgFetch))?.first
+                if lastSDMessage == nil {
+                    // Every stored message is unsent. After a fresh sign-in the store holds only the
+                    // server's newest message per thread, which can be an unsent one; with no last
+                    // message the list took the thread for an empty duplicate of another thread with
+                    // the same members and hid it. The row shows the unsent line instead.
+                    var unsentFetch = FetchDescriptor<SDMessage>(
+                        predicate: #Predicate<SDMessage> {
+                            $0.conversationId == convId
+                            && $0.messageType != "system"
+                            && $0.deletedAt != nil
+                        },
+                        sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
+                    )
+                    unsentFetch.fetchLimit = 1
+                    lastSDMessage = (try? modelContext.fetch(unsentFetch))?.first
+                }
                 lastMessage = lastSDMessage.map { MessagingMapper.mapToMessage($0) }
             }
 
@@ -327,11 +343,42 @@ final class MessagingRepository {
         return try modelContext.fetch(fetchDescriptor).first
     }
 
+#if DEBUG
+    /// DEBUG-only durations of the three steps of a `save(changedConversationIds:)`. The
+    /// publish steps include the subscribers' sinks, which run inline on `send`.
+    struct SaveTimings {
+        let context: TimeInterval
+        let conversationsPublish: TimeInterval
+        let messagesPublish: TimeInterval
+    }
+
+    /// The step durations of the most recent successful `save(changedConversationIds:)`, read
+    /// by the send-path sub-timings in `MessageSendManager`.
+    private(set) var lastSaveTimings: SaveTimings?
+#endif
+
     func save(changedConversationIds: Set<UUID> = []) throws {
+#if DEBUG
+        lastSaveTimings = nil
+        let saveStart = Date()
+#endif
         guard let modelContext = modelContext else { return }
         try modelContext.save()
+#if DEBUG
+        let contextSaved = Date()
+#endif
         refreshConversationsPublisher(changedConversationIds: changedConversationIds)
+#if DEBUG
+        let conversationsPublished = Date()
+#endif
         refreshMessagesPublishers(changedConversationIds: changedConversationIds)
+#if DEBUG
+        lastSaveTimings = SaveTimings(
+            context: contextSaved.timeIntervalSince(saveStart),
+            conversationsPublish: conversationsPublished.timeIntervalSince(contextSaved),
+            messagesPublish: Date().timeIntervalSince(conversationsPublished)
+        )
+#endif
     }
     
     /// Save the SwiftData context without triggering any publisher refreshes.

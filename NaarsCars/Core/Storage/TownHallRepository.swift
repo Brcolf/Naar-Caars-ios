@@ -8,6 +8,37 @@ import SwiftData
 import SwiftUI
 internal import Combine
 
+/// The community a Town Hall full sync fetched. Carried in the `.townHallPostsDidSync`
+/// notification's `userInfo` under `userInfoKey`; targeted upserts and repository writes post
+/// without one.
+enum TownHallSyncScope: Equatable, Sendable {
+    /// Fetched with no community filter (no community known yet; RLS still limits the rows).
+    case unfiltered
+    case community(UUID)
+
+    init(communityId: UUID?) {
+        if let communityId {
+            self = .community(communityId)
+        } else {
+            self = .unfiltered
+        }
+    }
+
+    var communityId: UUID? {
+        if case .community(let id) = self { return id }
+        return nil
+    }
+
+    static let userInfoKey = "townHallSyncScope"
+}
+
+/// One re-emission of the stored posts. `syncedScope` is the scope of the full sync whose save
+/// caused it, or nil for a targeted upsert or a repository write.
+struct TownHallPostsEmission {
+    let posts: [TownHallPost]
+    let syncedScope: TownHallSyncScope?
+}
+
 @MainActor
 final class TownHallRepository {
     static let shared = TownHallRepository()
@@ -22,11 +53,21 @@ final class TownHallRepository {
 
     // MARK: - Posts
 
-    func getPosts() throws -> [TownHallPost] {
+    /// Stored posts, newest first.
+    /// - Parameter communityId: nil reads every row (no community filter). A community reads its
+    ///   rows plus rows with no community, which a build without the column cached and the next
+    ///   sync rewrites.
+    func getPosts(communityId: UUID?) throws -> [TownHallPost] {
         guard let modelContext = modelContext else { return [] }
-        let descriptor = FetchDescriptor<SDTownHallPost>(
+        var descriptor = FetchDescriptor<SDTownHallPost>(
             sortBy: [SortDescriptor(\.createdAt, order: .reverse)]
         )
+        if communityId != nil {
+            let target: UUID? = communityId
+            descriptor.predicate = #Predicate<SDTownHallPost> { post in
+                post.communityId == target || post.communityId == nil
+            }
+        }
         let sdPosts = try modelContext.fetch(descriptor)
         return sdPosts.map { mapToTownHallPost($0) }
     }
@@ -34,10 +75,17 @@ final class TownHallRepository {
     /// Re-emits the local posts whenever town hall post rows were saved — by this repository or by
     /// `TownHallSyncEngine` after a `BackgroundSyncActor` save (`.townHallPostsDidSync`). Unrelated
     /// SwiftData saves (messages, rides, badges) do not trigger a re-fetch.
-    func getPostsPublisher() -> AnyPublisher<[TownHallPost], Never> {
+    /// - Parameter communityId: read when each emission is built, so the posts follow the
+    ///   caller's current community; the emission also carries the scope of the sync that saved.
+    func getPostsPublisher(communityId: @escaping @MainActor () -> UUID?) -> AnyPublisher<TownHallPostsEmission, Never> {
         NotificationCenter.default.publisher(for: .townHallPostsDidSync)
             .receive(on: RunLoop.main)
-            .map { _ in (try? self.getPosts()) ?? [] }
+            .map { notification in
+                TownHallPostsEmission(
+                    posts: (try? self.getPosts(communityId: communityId())) ?? [],
+                    syncedScope: notification.userInfo?[TownHallSyncScope.userInfoKey] as? TownHallSyncScope
+                )
+            }
             .eraseToAnyPublisher()
     }
 
@@ -45,7 +93,9 @@ final class TownHallRepository {
     /// actually changed.
     /// - Parameter replaceAll: `true` when `posts` is the complete first page, so local posts missing
     ///   from it (e.g. hidden by moderation) are removed. Pass `false` for later pages or single posts.
-    func upsertPosts(_ posts: [TownHallPost], replaceAll: Bool = false) throws {
+    /// - Parameter syncScope: the scope of the full sync that fetched `posts`, stamped on the
+    ///   notification; nil for anything else.
+    func upsertPosts(_ posts: [TownHallPost], replaceAll: Bool = false, syncScope: TownHallSyncScope? = nil) throws {
         guard let modelContext = modelContext else { return }
         // Nothing to upsert and no stale check requested: avoid an empty `contains` predicate.
         guard replaceAll || !posts.isEmpty else { return }
@@ -85,7 +135,8 @@ final class TownHallRepository {
 
         guard didMutate else { return }
         try modelContext.save()
-        NotificationCenter.default.post(name: .townHallPostsDidSync, object: nil)
+        let userInfo: [AnyHashable: Any]? = syncScope.map { [TownHallSyncScope.userInfoKey: $0] }
+        NotificationCenter.default.post(name: .townHallPostsDidSync, object: nil, userInfo: userInfo)
     }
 
     func deletePost(id: UUID) throws {
@@ -185,6 +236,7 @@ final class TownHallRepository {
             hiddenAt: sdPost.hiddenAt,
             hiddenBy: sdPost.hiddenBy,
             hiddenReason: sdPost.hiddenReason,
+            communityId: sdPost.communityId,
             createdAt: sdPost.createdAt,
             updatedAt: sdPost.updatedAt,
             author: author,
@@ -213,7 +265,8 @@ final class TownHallRepository {
             updatedAt: post.updatedAt,
             authorName: post.author?.name,
             authorAvatarUrl: post.author?.avatarUrl,
-            commentCount: post.commentCount
+            commentCount: post.commentCount,
+            communityId: post.communityId
         )
     }
 
@@ -230,6 +283,7 @@ final class TownHallRepository {
         if sdPost.hiddenAt != post.hiddenAt { sdPost.hiddenAt = post.hiddenAt; changed = true }
         if sdPost.hiddenBy != post.hiddenBy { sdPost.hiddenBy = post.hiddenBy; changed = true }
         if sdPost.hiddenReason != post.hiddenReason { sdPost.hiddenReason = post.hiddenReason; changed = true }
+        if sdPost.communityId != post.communityId { sdPost.communityId = post.communityId; changed = true }
         if sdPost.createdAt != post.createdAt { sdPost.createdAt = post.createdAt; changed = true }
         if sdPost.updatedAt != post.updatedAt { sdPost.updatedAt = post.updatedAt; changed = true }
         if sdPost.authorName != post.author?.name { sdPost.authorName = post.author?.name; changed = true }

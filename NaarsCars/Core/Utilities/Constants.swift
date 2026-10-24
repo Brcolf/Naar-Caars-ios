@@ -134,10 +134,21 @@ enum Constants {
         static let refreshStalenessWindow: TimeInterval = 30.0
         /// Safety poll interval (5 minutes)
         static let refreshSafetyPollInterval: TimeInterval = 300.0
+        /// Sign-out: longest `RefreshCoordinator.reset()` waits for the refreshes it cancelled to
+        /// finish before the SwiftData wipe (a job already inside `BackgroundSyncActor` runs to its
+        /// save, 16 to 120 ms measured). Bounds the wait so sign-out cannot hang (3s).
+        static let refreshResetDrainTimeout: TimeInterval = 3.0
         /// Conversations-list poll interval used ONLY while push notifications are not authorized
         /// and the messages tab is visible (push-off fallback, commit 7dd1494). Ticks route through
         /// RefreshCoordinator.refreshIfNeeded, so the 30s staleness window and failure backoff still apply.
         static let conversationsPushOffPollInterval: TimeInterval = 60.0
+        /// Shortest time between two automatic `get_my_memberships` loads (foreground recheck, 30s)
+        static let membershipRefreshMinInterval: TimeInterval = 30
+        /// How often the waiting screen re-checks its memberships (30s)
+        static let pendingApprovalPollInterval: TimeInterval = 30
+        /// Longest a Town Hall push or bell-row target waits for the first membership load (cold
+        /// start) before it opens in the community already shown (the load failed or is offline)
+        static let townHallTargetMembershipWait: TimeInterval = 10
         /// Gap between consecutive messages after which the thread shows a time header
         /// ("Today 3:45 PM"), as iMessage does (1 hour). Day changes always get one.
         static let messageTimeHeaderGap: TimeInterval = 3600
@@ -209,6 +220,22 @@ enum Constants {
         static let audioPlaybackCacheMaxBytes: Int64 = 100 * 1_024 * 1_024
         /// Trim target when audio cache exceeds budget
         static let audioPlaybackCacheTrimTargetBytes: Int64 = 80 * 1_024 * 1_024
+        /// Seconds a signed storage URL stays valid (createSignedURL expiresIn)
+        static let signedURLLifetime: Int = 3600
+        /// A cached signed URL is renewed when less than this many seconds of its lifetime remain
+        static let signedURLRenewMargin: TimeInterval = 300
+        /// Max signed URLs kept in memory; past it the entry with the earliest expiry goes
+        static let signedURLCacheMaxEntries = 500
+        /// Byte budget of the decoded, display-sized images PersistentImageService keeps in
+        /// memory (cost = bitmap bytes); NSCache evicts past it, and a memory warning empties it
+        static let imageMemoryCacheMaxBytes = 80 * 1_024 * 1_024
+        /// Pixels a feed photo's short side is decoded at: the card's width on the widest iPhone
+        /// (440 pt less 64 pt of padding) at 3x. A portrait photo is then never shown wider than it
+        /// was decoded; a landscape one is decoded wider than the card, by its aspect ratio.
+        static let feedImageMaxPixelSize: CGFloat = 1128
+        /// Display scale assumed by a UIKit view that is not in a window yet (its trait scale is 0):
+        /// the largest iPhone scale, so a decoded avatar is never smaller than its circle
+        static let fallbackDisplayScale: CGFloat = 3
     }
     
     /// External URLs
@@ -223,8 +250,72 @@ enum Constants {
         static let privacyPolicy = "https://stitch-hydrangea-9b8.notion.site/Naars-Cars-Privacy-Policy-2ee7d642e90c8021b971f71c9cd957fc"
         static let appStore = "https://apps.apple.com/app/naars-cars/id6757571644"
         static let deepLinkBase = "https://naarscars.com"
+        /// The Universal Link domain (the `applinks:` entry of the Associated Domains entitlement).
+        static let universalLinkHost = "naarscars.com"
+        static let joinPath = "/join"
+        /// An invite link. The code goes in the fragment, which browsers never send to the server.
+        static func joinLink(code: String) -> String { "\(deepLinkBase)\(joinPath)#\(code)" }
     }
     
+    /// Community limits and lengths. The server enforces every limit; the client validates only
+    /// to avoid pointless calls.
+    enum Community {
+        static let nameLength = 2...60
+        static let descriptionMaxLength = 300
+        static let answerMaxLength = 500
+        static let limitRequestRange = 4...20
+        static let memberInviteLifetimeDays = 7
+        static let adminInviteMaxUses = 1000
+        static let inviteExpiryDayChoices = [1, 7, 30, 90]
+        static let pendingMembersPageSize = 100
+        static let membersPageSize = 500
+        /// Longest note a community admin can attach to a removal (remove_community_member keeps 500)
+        static let removalNoteMaxLength = 500
+        /// Rows asked of `search_community_members` when the account-deletion check confirms a successor is not banned (the server caps it at 50)
+        static let successorSearchLimit = 50
+        /// How long a code kept for a signed-out visitor stays valid (7 days)
+        static let pendingInviteLifetime: TimeInterval = 7 * 24 * 3600
+        /// When true, the invite share message and QR carry `URLs.joinLink(code:)`. Set it to true
+        /// only once `https://naarscars.com/.well-known/apple-app-site-association` and the
+        /// `https://naarscars.com/join` landing page are live (Phase 4 plan, Prerequisite 1d).
+        static let shareInviteLinks: Bool = false
+        /// Places the community page's leaderboard section lists before "See all"
+        static let pageLeaderboardRows = 3
+        /// Open requests the community page lists. The same cap as `get_community_preview`, so a
+        /// member and a visitor see the same number of rows.
+        static let pagePreviewRequests = 10
+        /// Recent Town Hall posts the community page lists (the cap of `get_community_preview`)
+        static let pagePreviewPosts = 5
+
+        // MARK: Discovery (Release 2; the server enforces each value)
+
+        /// Shortest name query sent to `search_communities_by_name` (the server answers [] below it)
+        static let searchMinLength = 2
+        /// Longest name query (the server cuts it at 60)
+        static let searchMaxLength = 60
+        /// Pause after the last keystroke before a name search runs
+        static let searchDebounce: Duration = .milliseconds(350)
+        /// Service-area radii a community can choose, in miles (the server accepts only these)
+        static let areaRadiusChoices = [1, 2, 5, 10]
+        static let defaultAreaRadiusMiles = 2
+        /// Height of the service-area map card (a plain inset card, no interaction)
+        static let areaMapHeight: CGFloat = 160
+        /// Fill opacity of the service-area circle on that map
+        static let areaMapFillOpacity: Double = 0.15
+        /// Longest service-area name (the server accepts 2-80 characters)
+        static let areaNameMaxLength = 80
+        /// Longest reason for listing a community where others already serve the area (the server refuses more than 300)
+        static let listingReasonMaxLength = 300
+        /// Longest note on a merge proposal
+        static let mergeNoteMaxLength = 300
+        /// Decimal places a device coordinate is rounded to before a place search (3 is about 100 m)
+        static let searchCoordinateDecimals = 3
+        /// How long "Use my location" waits for one fix
+        static let locationSearchTimeout: TimeInterval = 5
+        /// How long a community page visit is remembered (7 days)
+        static let viewedCommunityLifetime: TimeInterval = 7 * 24 * 3600
+    }
+
     /// Default map coordinates
     enum Map {
         static let defaultLatitude: Double = 47.6062    // Seattle

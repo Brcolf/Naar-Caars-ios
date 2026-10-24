@@ -2,7 +2,7 @@
 //  ProfileService+AccountStatus.swift
 //  NaarsCars
 //
-//  Own-row account status reads/writes: ban reason, application submission
+//  Own-row account status reads: ban reason
 //
 
 import Foundation
@@ -31,20 +31,5 @@ extension ProfileService {
             .execute()
             .value
         return response.banReason
-    }
-
-    /// Store the post-auth application answers and mark the application complete.
-    /// Inputs must already be sanitized by the caller (see ApplicationFieldsViewModel).
-    func submitApplication(userId: UUID, heardAbout: String, joinReason: String) async throws {
-        try await SupabaseService.shared.client
-            .from("profiles")
-            .update([
-                "heard_about": AnyCodable(heardAbout),
-                "join_reason": AnyCodable(joinReason),
-                "application_complete": AnyCodable(true),
-                "application_submitted_at": AnyCodable(ISO8601DateFormatter().string(from: Date()))
-            ])
-            .eq("id", value: userId.uuidString)
-            .execute()
     }
 }

@@ -1,0 +1,12 @@
+{
+  "aps": {
+    "alert": {
+      "title": "New ride request",
+      "body": "Fixture: new_ride with community_id of another community"
+    },
+    "sound": "default"
+  },
+  "type": "new_ride",
+  "ride_id": "<RIDE_ID>",
+  "community_id": "<COMMUNITY_ID>"
+}

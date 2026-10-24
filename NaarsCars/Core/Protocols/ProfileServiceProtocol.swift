@@ -9,8 +9,7 @@ protocol ProfileServiceProtocol: AnyObject {
     func fetchProfile(userId: UUID) async throws -> Profile
     func fetchProfiles(userIds: [UUID]) async throws -> [Profile]
     func fetchReviews(forUserId userId: UUID) async throws -> [Review]
-    func calculateAverageRating(userId: UUID) async throws -> Double?
-    func fetchFulfilledCount(userId: UUID) async throws -> Int
+    func fetchProfileStats(userId: UUID) async throws -> ProfileStats
     func uploadAvatar(imageData: Data, userId: UUID) async throws -> String
     func updateProfile(
         userId: UUID,
@@ -26,6 +25,5 @@ protocol ProfileServiceProtocol: AnyObject {
     func fetchUserXPEvents() async throws -> [XPEvent]
     func deleteAccount(userId: UUID) async throws
     func fetchBanReason(userId: UUID) async throws -> String?
-    func submitApplication(userId: UUID, heardAbout: String, joinReason: String) async throws
-    func searchPublicProfiles(query: String, limit: Int) async throws -> [Profile]
+    func searchCommunityMembers(query: String, communityId: UUID?, limit: Int) async throws -> [Profile]
 }

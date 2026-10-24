@@ -16,3 +16,13 @@ Rules:
 3) If deferred navigation exists:
    - keep it behind a single mechanism (pendingIntent) and do not duplicate patterns.
 
+
+4) Town Hall pushes: `entityIdKey` is `town_hall_post_id`; the optional `community_id` is parsed in `DeepLinkParser`. A post in a community the person is not in shows an unavailable toast and leaves `communityTabId` unchanged.
+
+5) Community approval: `pending_approval` with `community_id` maps to `.pendingMembers(communityId)`; without it, to `.pendingUsers` (the default community's Requests to join). `.enterApp` while authenticated maps to `.myCommunities`. Update the routing test when either changes.
+
+6) Community moderation: `content_reported` with `community_id` maps to `.communityReports(communityId)` for a person who is not a platform admin; without it, to `.adminReports`. `account_restricted` maps to `.myCommunities`. Update the routing test when either changes.
+
+4) Phase 4 intents and URLs
+   - New `DeepLink` / `NavigationIntent` cases: `communityMembers(communityId:)` (membership_update `owner`) and `joinCommunity` (Universal Link). `NavigationCoordinator.applyExternalDeepLink(_:)` is the entry for links.
+   - Incoming URLs arrive only through `onOpenURL` → `IncomingLinkHandler.handle(_:)`. `AppDelegate` has no URL handling (`application(_:open:options:)` was removed); do not add any.

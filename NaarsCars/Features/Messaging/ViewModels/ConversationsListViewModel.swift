@@ -55,19 +55,32 @@ struct MessageSearchResult: Identifiable {
     private let authService: any AuthServiceProtocol
     private let muteService = ConversationMuteService.shared
     private let participantService = ConversationParticipantService.shared
+    private let refreshCoordinator: RefreshCoordinator
     private var cancellables = Set<AnyCancellable>()
 #if DEBUG
     /// Test hook: number of Combine subscriptions installed by `start()`.
     var debugObservationSinkCount: Int { cancellables.count }
+    /// Test hook: the coordinator wait the last `loadConversations` started, if it is still running.
+    var debugLoadTask: Task<Void, Never>? { loadTask }
 #endif
     private let pageSize = 10
     private var currentOffset = 0
+    /// Rows `loadMoreConversations` added that the store does not hold (paging writes nothing to
+    /// SwiftData). `applyLocalConversations` keeps them: dropping them on every appearance and every
+    /// publisher emission left one page on screen, the bottom anchor came back into view, and the
+    /// same pages were fetched again on each visit. An explicit reload and the first appearance
+    /// after a change made on this device clear them, and paging restarts from the stored rows.
+    @ObservationIgnored private var pagedConversationIds: Set<UUID> = []
     private var searchTask: Task<Void, Never>?
     private var loadTask: Task<Void, Never>?
     /// Coalesced participant-profile hydration for conversations the local publisher
     /// surfaced without `otherParticipants` (the coordinator path stores IDs only).
     private var hydrationTask: Task<Void, Never>?
     private var lastRemoteSyncAt: Date = .distantPast
+    /// Set by a `.conversationUpdated` post without a message: a conversation this device created,
+    /// renamed, re-imaged, added members to, left or deleted. No push reports the device's own change
+    /// and a full sync from before it can still be current, so the next appearance forces one sync.
+    @ObservationIgnored private var needsSyncOnNextAppearance = false
     /// Push-off fallback poll (see Constants.Timing.conversationsPushOffPollInterval).
     /// Owned here so the View never owns polling. Started/stopped by the View's appear/disappear
     /// lifecycle via startPushOffPoll()/stopPushOffPoll(); stop() also tears it down.
@@ -77,12 +90,15 @@ struct MessageSearchResult: Identifiable {
         conversationService: any ConversationServiceProtocol = ConversationService.shared,
         profileService: any ProfileServiceProtocol = ProfileService.shared,
         messageService: any MessageServiceProtocol = MessageService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared
+        authService: any AuthServiceProtocol = AuthService.shared,
+        refreshCoordinator: RefreshCoordinator? = nil
     ) {
         self.conversationService = conversationService
         self.profileService = profileService
         self.messageService = messageService
         self.authService = authService
+        // Resolved here, not as a default argument: `RefreshCoordinator.shared` is main-actor isolated.
+        self.refreshCoordinator = refreshCoordinator ?? .shared
     }
 
     /// Whether `start()` has registered the repository / NotificationCenter observers.
@@ -101,6 +117,19 @@ struct MessageSearchResult: Identifiable {
         hasStartedObservation = true
         setupUnreadCountObservers()
         setupLocalObservation()
+        setupLocalChangeObserver()
+    }
+
+    /// A post with a message is a realtime message event, which the repository publisher already
+    /// delivers; only the conversation-level changes made on this device set the flag.
+    private func setupLocalChangeObserver() {
+        NotificationCenter.default.publisher(for: .conversationUpdated)
+            .filter { $0.userInfo?["message"] == nil }
+            .receive(on: RunLoop.main)
+            .sink { [weak self] _ in
+                self?.needsSyncOnNextAppearance = true
+            }
+            .store(in: &cancellables)
     }
 
     private func setupLocalObservation() {
@@ -130,8 +159,15 @@ struct MessageSearchResult: Identifiable {
     }
 
     func applyLocalConversations(_ updatedConversations: [ConversationWithDetails], animated: Bool = false) {
+        // Keep the rows paged in from the server that this update does not carry (a row it carries
+        // wins). The set is not narrowed here: profile hydration re-applies every row it holds,
+        // paged ones included, and the next stored-only update must still keep them.
+        let incomingIds = Set(updatedConversations.map(\.id))
+        let pagedRows = pagedConversationIds.isEmpty
+            ? []
+            : conversations.filter { pagedConversationIds.contains($0.id) && !incomingIds.contains($0.id) }
         // Filter out conversations the user has soft-deleted, then filter blocked
-        let visible = filterBlockedConversations(filterHiddenConversations(updatedConversations))
+        let visible = filterBlockedConversations(filterHiddenConversations(updatedConversations + pagedRows))
 
         let mergedConversations = visible.map { updated in
             guard updated.otherParticipants.isEmpty,
@@ -390,10 +426,14 @@ struct MessageSearchResult: Identifiable {
         // The coordinator owns the decision, dedup and backoff. Conversations the refresh
         // surfaces arrive through the repository publisher, which hydrates missing
         // participant profiles itself (hydrateMissingProfilesIfNeeded).
-        RefreshCoordinator.shared.refreshIfNeeded(.conversations, trigger: "pushOffPoll")
+        refreshCoordinator.refreshIfNeeded(.conversations, trigger: "pushOffPoll")
     }
 
-    func loadConversations(trigger: String = "manualReload:conversations") async {
+    /// Show the stored conversations and wait on a coordinator sync. `forceRemote` true (pull-to-refresh,
+    /// the error Retry, the reload after composing) always syncs. The list's appearance passes false:
+    /// the coordinator then skips when a current full sync covers it (`unlessCurrent`), except once
+    /// after a change made on this device (`needsSyncOnNextAppearance`).
+    func loadConversations(trigger: String = "manualReload:conversations", forceRemote: Bool = true) async {
         // Skeleton rows only for the first load of a session. Someone with no conversations at
         // all would otherwise see the skeleton flash on every later reload.
         let showLoading = Self.shouldShowLoading(conversations: conversations) && lastRemoteSyncAt == .distantPast
@@ -416,12 +456,22 @@ struct MessageSearchResult: Identifiable {
         
         error = nil
         
+        // An explicit reload, or the first appearance after a change made on this device (a thread
+        // left or deleted can be among the paged rows), restarts paging from the stored rows.
+        if (forceRemote || needsSyncOnNextAppearance) && !pagedConversationIds.isEmpty {
+            pagedConversationIds.removeAll()
+            hasMoreConversations = true
+        }
+
         // 1. Load from local SwiftData immediately
         do {
             let localConversations = try repository.getConversations(for: userId)
             applyLocalConversations(localConversations, animated: false)
-            // Set offset from local count so pagination works even before remote sync completes
-            currentOffset = conversations.count
+            // Set offset from local count so pagination works even before remote sync completes.
+            // Not while paged rows are held: the offset already counts the pages fetched.
+            if pagedConversationIds.isEmpty {
+                currentOffset = conversations.count
+            }
             AppLogger.info("messaging", "[ConversationsListVM] Loaded \(conversations.count) conversations from local storage")
 
             // Hydrate profiles for local conversations
@@ -429,12 +479,20 @@ struct MessageSearchResult: Identifiable {
         } catch {
             AppLogger.warning("messaging", "[ConversationsListVM] Error loading local conversations: \(error)")
         }
-        
+
+        // A tab appearance or Back from a thread is not a reload. It asks the coordinator with
+        // unlessCurrent: a full sync that ran since the last push, foreground or session start and
+        // within the staleness window (the tabAppear or launch sync) is not repeated, one in flight is
+        // joined, and otherwise one sync runs. A Back gets no tabAppear, so without this call a thread
+        // that changed with no push (muted, push off) stayed stale until a tab switch.
+        let forced = forceRemote || needsSyncOnNextAppearance
+
         let now = Date()
         guard now.timeIntervalSince(lastRemoteSyncAt) >= Constants.Timing.messagingListRemoteSyncMinInterval else {
             return
         }
         lastRemoteSyncAt = now
+        needsSyncOnNextAppearance = false
 
         // 2. Remote sync is owned by RefreshCoordinator → MessagingSyncEngine.refreshConversationList()
         //    → BackgroundSyncActor; the repository publisher re-emits after that save. The task is stored
@@ -446,17 +504,35 @@ struct MessageSearchResult: Identifiable {
                 loadTask = nil
                 if showLoading { isLoading = false }
             }
-            let result = await RefreshCoordinator.shared.forceFullRefreshAndWait(.conversations, trigger: trigger)
+            let result = await refreshCoordinator.forceFullRefreshAndWait(
+                .conversations,
+                trigger: trigger,
+                unlessCurrent: !forced
+            )
             guard !Task.isCancelled else { return }
             if case .failed(let error, _)? = result {
                 AppLogger.error("messaging", "[ConversationsListVM] Error syncing conversations: \(error)")
                 return
             }
+            // Skipped: nothing was fetched, and the stored rows were read and hydrated above.
+            if case .skipped? = result { return }
             do {
                 let updatedConversations = try repository.getConversations(for: userId)
                 self.applyLocalConversations(updatedConversations, animated: false)
-                currentOffset = self.conversations.count
-                hasMoreConversations = true // Reset so pagination can continue after sync
+                if pagedConversationIds.isEmpty {
+                    currentOffset = self.conversations.count
+                }
+                // The end of the list stays known until the stored list changes. Setting it back
+                // after every sync put the bottom anchor, in view at once below one page, back on
+                // screen, and it fetched the same empty page again.
+                if case .completed(let metrics)? = result {
+                    if (1..<Constants.PageSizes.conversations).contains(metrics.recordsEvaluated) {
+                        // A short first page holds every conversation: there is nothing to page.
+                        hasMoreConversations = false
+                    } else if metrics.savedToStore {
+                        hasMoreConversations = true
+                    }
+                }
                 await hydrateProfiles(for: updatedConversations)
             } catch {
                 if !Task.isCancelled {
@@ -539,6 +615,7 @@ struct MessageSearchResult: Identifiable {
 
             if !newConversations.isEmpty {
                 self.conversations.append(contentsOf: newConversations)
+                pagedConversationIds.formUnion(newConversations.map(\.id))
                 AppLogger.info("messaging", "[ConversationsListVM] Loaded \(newConversations.count) more conversations")
             }
 

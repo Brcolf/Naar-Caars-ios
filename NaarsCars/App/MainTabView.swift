@@ -7,19 +7,22 @@
 
 import SwiftUI
 
-/// Main tab view with 4 tabs for authenticated users
-/// Notifications are shown as badges on relevant tabs
+/// Main tab view: Requests, Messages, Town Hall and Profile, then Explore as the trailing
+/// search-role tab. Notifications are shown as badges on relevant tabs
 struct MainTabView: View {
     @Environment(AppState.self) private var appState
     @State private var badgeManager = BadgeCountManager.shared
     @State private var navigationCoordinator = NavigationCoordinator.shared
     @State private var promptCoordinator = PromptCoordinator.shared
     @State private var toastManager = InAppToastManager.shared
-    @State private var selectedTab = 0
+    @State private var selectedTab: NavigationCoordinator.Tab = .requests
     @State private var showGuidelinesAcceptance = false
     @State private var showNotificationsSheet = false
     @State private var isNotificationsSheetVisible = false
-    @State private var showGuestDeepLinkPrompt = false
+    /// The sign-in prompt for a guest who followed an auth-required intent (its reason names the action).
+    @State private var guestPromptReason: GuestRestrictionReason?
+    /// A saved invite code opens My communities once per view lifetime.
+    @State private var didOfferPendingInvite = false
 
     @ViewBuilder
     private var toastOverlay: some View {
@@ -50,73 +53,59 @@ struct MainTabView: View {
         @Bindable var promptCoordinator = promptCoordinator
         TabView(selection: $selectedTab) {
             // Combined dashboard with rides and favors
-            RequestsDashboardView()
-                .tag(0)
-                .badge(badgeManager.counts.requests > 0 ? String(badgeManager.counts.requests) : nil)
-                .tabItem {
-                    Label("nav_tab_requests".localized, systemImage: "car.fill")
-                }
-                .accessibilityHint("nav_tab_requests_hint".localized)
-            
-            Group {
+            Tab("nav_tab_requests".localized, systemImage: "car.fill", value: NavigationCoordinator.Tab.requests) {
+                RequestsDashboardView()
+            }
+            .badge(badgeManager.counts.requests)
+            .accessibilityHint("nav_tab_requests_hint".localized)
+
+            Tab("nav_tab_messages".localized, systemImage: "message.fill", value: NavigationCoordinator.Tab.messages) {
                 if appState.isGuest {
                     GuestMessagesView()
                 } else {
                     ConversationsListView()
                 }
             }
-                .tag(1)
-                .badge(badgeManager.counts.messages > 0 ? String(badgeManager.counts.messages) : nil)
-                .tabItem {
-                    Label("nav_tab_messages".localized, systemImage: "message.fill")
-                }
-                .accessibilityHint("nav_tab_messages_hint".localized)
-            
-            CommunityTabView()
-                .tag(2)
-                .badge(badgeManager.counts.community > 0 ? String(badgeManager.counts.community) : nil)
-                .tabItem {
-                    Label("nav_tab_community".localized, systemImage: "person.3.fill")
-                }
-                .accessibilityHint("nav_tab_community_hint".localized)
-            
-            Group {
+            .badge(badgeManager.counts.messages)
+            .accessibilityHint("nav_tab_messages_hint".localized)
+
+            Tab("nav_tab_town_hall".localized, systemImage: "person.3.fill", value: NavigationCoordinator.Tab.townHall) {
+                CommunityTabView()
+            }
+            .badge(badgeManager.counts.community)
+            .accessibilityHint("nav_tab_town_hall_hint".localized)
+
+            Tab("nav_tab_profile".localized, systemImage: "person.fill", value: NavigationCoordinator.Tab.profile) {
                 if appState.isGuest {
                     GuestProfileView()
                 } else {
                     MyProfileView()
                 }
             }
-                .tag(3)
-                .badge(badgeManager.counts.profile > 0 ? String(badgeManager.counts.profile) : nil)
-                .tabItem {
-                    Label("nav_tab_profile".localized, systemImage: "person.fill")
-                }
-                .accessibilityHint("nav_tab_profile_hint".localized)
-        }
-        .onChange(of: navigationCoordinator.selectedTab) { _, newTab in
-            selectedTab = newTab.rawValue
-        }
-        .onChange(of: selectedTab) { oldValue, newTab in
-            // Update coordinator when user manually changes tab
-            if let tab = NavigationCoordinator.Tab(rawValue: newTab) {
-                navigationCoordinator.selectedTab = tab
-            }
+            .accessibilityHint("nav_tab_profile_hint".localized)
 
-            // Notify RefreshCoordinator of visible domain
-            let domain: RefreshCoordinator.Domain? = {
-                switch newTab {
-                case 0: return .dashboard
-                case 1: return .conversations
-                case 2: return .townHall
-                case 3: return nil  // profile — no refresh domain
-                default: return nil
-                }
-            }()
-            RefreshCoordinator.shared.setVisibleDomain(domain)
+            // The search-role tab: iOS draws it apart at the trailing end with a magnifying glass;
+            // "Explore" is its screen title and VoiceOver name.
+            Tab("explore_title".localized, systemImage: "magnifyingglass", value: NavigationCoordinator.Tab.explore, role: .search) {
+                ExploreView()
+            }
+            .badge(appState.isGuest ? 0 : badgeManager.counts.explore)
+            .accessibilityHint("explore_tab_hint".localized)
+            .accessibilityIdentifier("tab.explore")
+        }
+        .tabBarMinimizeBehavior(.onScrollDown)
+        .onChange(of: navigationCoordinator.selectedTab) { _, newTab in
+            selectedTab = newTab
+        }
+        .onChange(of: selectedTab) { oldTab, newTab in
+            // Update coordinator when user manually changes tab
+            navigationCoordinator.selectedTab = newTab
+
+            // Notify RefreshCoordinator of visible domain (Profile and Explore have none)
+            RefreshCoordinator.shared.setVisibleDomain(newTab.refreshDomain)
 
             // Tear down conversation WebSocket when leaving messaging tab
-            if oldValue == 1 && newTab != 1 {
+            if oldTab == .messages && newTab != .messages {
                 Task { await MessagingSyncEngine.shared.cancelGracePeriodAndUnsubscribe() }
             }
 
@@ -124,15 +113,15 @@ struct MainTabView: View {
             // Clear badges when navigating to their respective tabs
             Task {
                 switch newTab {
-                case 0: // Requests
+                case .requests:
                     await badgeManager.clearRequestsBadge()
-                case 1: // Messages
+                case .messages:
                     await badgeManager.clearMessagesBadge()
-                case 2: // Community
-                    await badgeManager.clearCommunityBadge()
-                case 3: // Profile
-                    await badgeManager.clearProfileBadge()
-                default:
+                case .townHall:
+                    await badgeManager.clearCommunityBadge(visibleCommunityId: CommunityContext.shared.communityTabId)
+                case .explore:
+                    await badgeManager.clearExploreBadge()
+                case .profile:
                     break
                 }
             }
@@ -143,11 +132,11 @@ struct MainTabView: View {
         .onChange(of: navigationCoordinator.pendingIntent, initial: true) { oldIntent, intent in
             // Old and new are the same value only on that first pass.
             let isInitialPass = oldIntent == intent
-            if isInitialPass, let ownTab = NavigationCoordinator.Tab(rawValue: selectedTab) {
+            if isInitialPass {
                 // A new MainTabView starts on its own tab while the coordinator still remembers
                 // the tab of the previous one (sign-out happens on Profile). Its setter ignores
                 // equal values, so bring it back in step before anything is routed.
-                navigationCoordinator.selectedTab = ownTab
+                navigationCoordinator.selectedTab = selectedTab
             }
             guard let intent else { return }
 
@@ -160,7 +149,7 @@ struct MainTabView: View {
                 }
                 if navigationCoordinator.intentRequiresAuth(intent) {
                     navigationCoordinator.pendingIntent = nil
-                    showGuestDeepLinkPrompt = true
+                    guestPromptReason = navigationCoordinator.guestPromptReason(for: intent)
                     return
                 }
             }
@@ -177,7 +166,11 @@ struct MainTabView: View {
                 // On the first pass the two coordinator writes above can cancel out (remembered
                 // tab equal to the target), and the onChange on the coordinator's tab would
                 // then report nothing, so select the tab here as well.
-                selectedTab = intent.targetTab.rawValue
+                selectedTab = intent.targetTab
+            }
+            if case .explore = intent {
+                // Only a tab selection: no screen consumes it.
+                navigationCoordinator.pendingIntent = nil
             }
         }
         // initial: true so a flag raised before this view existed (review push tapped while the
@@ -229,6 +222,7 @@ struct MainTabView: View {
             if !isNotificationsSheetVisible {
                 await enqueuePendingCompletionPromptIfNeeded()
             }
+            offerPendingInviteIfNeeded()
         }
         // Second trigger for the guidelines check only. On a cold launch the profile is still
         // nil when the task above runs (deferred loading fills it a moment later), so that check
@@ -238,6 +232,7 @@ struct MainTabView: View {
         .task(id: appState.currentUser?.id) {
             guard !appState.isGuest else { return }
             checkGuidelinesAcceptance()
+            offerPendingInviteIfNeeded()
         }
         .onReceive(NotificationCenter.default.publisher(for: .userDidSignOut)) { _ in
             showGuidelinesAcceptance = false
@@ -279,7 +274,9 @@ struct MainTabView: View {
                 AnnouncementsView(scrollToNotificationId: target.scrollToNotificationId, showsCloseButton: true)
             }
         }
-        .fullScreenCover(isPresented: $showGuidelinesAcceptance) {
+        .fullScreenCover(isPresented: $showGuidelinesAcceptance, onDismiss: {
+            offerPendingInviteIfNeeded()
+        }) {
             GuidelinesAcceptanceSheet {
                 await acceptGuidelines()
             }
@@ -336,9 +333,9 @@ struct MainTabView: View {
                 )
             }
         }
-        .sheet(isPresented: $showGuestDeepLinkPrompt) {
+        .sheet(item: $guestPromptReason) { reason in
             GuestSignInPromptView(
-                reason: .deepLinkSignIn,
+                reason: reason,
                 onSignUp: {
                     appState.isGuestMode = false
                     AppLaunchManager.shared.exitGuestMode()
@@ -372,6 +369,20 @@ struct MainTabView: View {
         guard let userId = AuthService.shared.currentUserId else { return }
         AppLogger.info("app", "[MainTabView] Enqueueing completion prompt requestType=\(requestType) requestId=\(requestId)")
         await promptCoordinator.enqueueCompletionPrompt(requestType: requestType, requestId: requestId, userId: userId)
+    }
+
+    /// An invite code saved on Welcome before sign-in opens My communities, whose join sheet
+    /// holds the code. Never under the guidelines cover (raised from the same first `.task`): the
+    /// cover's `onDismiss` calls this again. Reading the store does not clear it; only a
+    /// redemption (or a dead code) does, so a sheet that is cancelled loses nothing.
+    private func offerPendingInviteIfNeeded() {
+        guard !didOfferPendingInvite,
+              !appState.isGuest,
+              !showGuidelinesAcceptance,
+              AuthService.shared.currentProfile != nil,
+              PendingInviteStore().peek() != nil else { return }
+        didOfferPendingInvite = true
+        navigationCoordinator.pendingIntent = .myCommunities
     }
 
     private func checkGuidelinesAcceptance() {
@@ -423,6 +434,19 @@ struct MainTabView: View {
                 }
             }
         )
+    }
+}
+
+extension NavigationCoordinator.Tab {
+    /// The domain `RefreshCoordinator.setVisibleDomain` is told about when this tab is selected.
+    /// Profile and Explore have none: Explore's reads are its own, never a coordinator domain.
+    var refreshDomain: RefreshCoordinator.Domain? {
+        switch self {
+        case .requests: return .dashboard
+        case .messages: return .conversations
+        case .townHall: return .townHall
+        case .profile, .explore: return nil
+        }
     }
 }
 

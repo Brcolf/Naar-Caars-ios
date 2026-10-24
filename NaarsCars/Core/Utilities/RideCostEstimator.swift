@@ -28,11 +28,9 @@ enum RideCostEstimator {
 
     // MARK: - Geocoding Cache Config
 
-    static let geocodingCacheTable = "geocoding_cache"
-    static let geocodingCacheTtlHours: Double = 24
-    static let geocodingCacheCleanupDays: Int = 7
     static let reverseGeocodeTimeoutSeconds: Double = 2.0
     static let cacheKeyPrecision: Int = 3
+    /// nil until the first lookup; false once the lookup functions are found missing (for the session).
     static var geocodingCacheAvailable: Bool?
     
     // MARK: - Zone Definitions

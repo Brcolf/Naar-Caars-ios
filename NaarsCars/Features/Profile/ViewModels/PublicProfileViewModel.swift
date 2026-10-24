@@ -19,6 +19,8 @@ final class PublicProfileViewModel: ObservableObject {
     @Published var reviews: [Review] = []
     @Published var averageRating: Double?
     @Published var fulfilledCount: Int = 0
+    /// Reviews the viewer cannot read (written in communities the viewer is not in).
+    @Published var otherCommunityReviewCount: Int = 0
     @Published var isLoading: Bool = false
     @Published var error: AppError?
     @Published var isBlocking: Bool = false
@@ -60,18 +62,14 @@ final class PublicProfileViewModel: ObservableObject {
             
             // Fetch additional data concurrently
             async let reviewsTask = profileService.fetchReviews(forUserId: userId)
-            async let ratingTask = profileService.calculateAverageRating(userId: userId)
-            async let countTask = profileService.fetchFulfilledCount(userId: userId)
+            async let statsTask = profileService.fetchProfileStats(userId: userId)
             
-            let (fetchedReviews, fetchedRating, fetchedCount) = try await (
-                reviewsTask,
-                ratingTask,
-                countTask
-            )
+            let (fetchedReviews, stats) = try await (reviewsTask, statsTask)
             
             reviews = fetchedReviews
-            averageRating = fetchedRating
-            fulfilledCount = fetchedCount
+            averageRating = stats.averageRating
+            fulfilledCount = stats.fulfilledCount
+            otherCommunityReviewCount = max(0, stats.reviewCount - fetchedReviews.count)
             
         } catch {
             self.error = error as? AppError ?? AppError.unknown(error.localizedDescription)

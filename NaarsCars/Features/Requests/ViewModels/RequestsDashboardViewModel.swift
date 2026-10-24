@@ -16,6 +16,14 @@ struct RequestNotificationSummary {
     let latestUnreadAt: Date
 }
 
+/// What the top of the Requests screen shows: a title, the community's join rule under it when
+/// the list is one community's, and whether the community chips show.
+struct RequestsHeader: Equatable {
+    let title: String
+    let subtitle: String?
+    let showsCommunityChips: Bool
+}
+
 /// ViewModel for unified requests dashboard
 @MainActor
 final class RequestsDashboardViewModel: ObservableObject {
@@ -30,6 +38,11 @@ final class RequestsDashboardViewModel: ObservableObject {
     @Published var filteredRides: [SDRide] = []
     @Published var filteredFavors: [SDFavor] = []
     @Published var filteredRequests: [RequestItem] = []
+    /// Requests the current filter lists under All communities but the scope hides (a narrow or left-out
+    /// communities; 0 under All communities).
+    @Published private(set) var otherCommunitiesCount: Int = 0
+    /// Open requests under All communities, in total and per community, whatever the filter and the scope.
+    @Published private(set) var openCounts: OpenRequestCounts = .zero
 
     var unseenRequestKeys: Set<String> { summaryManager.unseenRequestKeys }
     var requestNotificationSummaries: [String: RequestNotificationSummary] { summaryManager.requestNotificationSummaries }
@@ -41,6 +54,7 @@ final class RequestsDashboardViewModel: ObservableObject {
     private let favorService: any FavorServiceProtocol
     private let authService: any AuthServiceProtocol
     private let filterManager: RequestFilterManager
+    private let communityContext: CommunityContext
     private let summaryManager: RequestNotificationSummaryManager
     private let realtimeHandler: RequestRealtimeHandler
     /// In-flight load task; cancelled in stop() to avoid use-after-free when view disappears.
@@ -52,8 +66,10 @@ final class RequestsDashboardViewModel: ObservableObject {
     init(
         rideService: any RideServiceProtocol = RideService.shared,
         favorService: any FavorServiceProtocol = FavorService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared
+        authService: any AuthServiceProtocol = AuthService.shared,
+        communityContext: CommunityContext? = nil
     ) {
+        self.communityContext = communityContext ?? CommunityContext.shared
         self.rideService = rideService
         self.favorService = favorService
         self.authService = authService
@@ -98,6 +114,10 @@ final class RequestsDashboardViewModel: ObservableObject {
 
     /// Set up the model context for SwiftData operations
     func setup(modelContext: ModelContext) {
+        // `.task` calls this on every appearance. With the same context the lists are already
+        // on screen, and `loadRequests` re-reads them one turn later; a second pass here only
+        // repeated the SwiftData fetches and filtering on the main actor.
+        guard self.modelContext !== modelContext else { return }
         self.modelContext = modelContext
         refreshFilteredRequests()
     }
@@ -137,11 +157,20 @@ final class RequestsDashboardViewModel: ObservableObject {
             guard !Task.isCancelled else { return }
             error = nil
 
-            // Show cached SwiftData data immediately
-            refreshFilteredRequests()
+            // A `.task` re-entry reads SwiftData only and returns through refreshUnseenRequestKeys,
+            // which recomputes the filter badge counts in this same job; skip them here.
+            let readsLocalOnly = !forceRefresh && hasPerformedInitialLoad
 
-            // Only show loading spinner if there's no cached data to display
+            // Show cached SwiftData data immediately
+            refreshFilteredRequests(updatingBadgeCounts: !readsLocalOnly)
+
+            // Only show the skeleton when nothing is cached. On a plain load, a filter with no rows
+            // over a filled store shows its empty state at once (the refresh below still runs and
+            // updates it); gating on the filter held the skeleton for a whole network round trip.
+            // The error panel's Retry and pull-to-refresh (forceRefresh) keep the skeleton over an
+            // empty filter until the refresh returns, as before.
             let hasCachedData = !filteredRequests.isEmpty
+                || (!forceRefresh && (modelContext.map { filterManager.hasStoredRequests(in: $0) } ?? false))
             if showLoadingIndicator && !hasCachedData { isLoading = true }
             defer { if !Task.isCancelled { isLoading = false } }
 
@@ -149,7 +178,7 @@ final class RequestsDashboardViewModel: ObservableObject {
             // explicit pull-to-refresh. Every later `.task` re-entry (tab switch, pop back)
             // re-reads SwiftData; staleness-gated refreshes stay with MainTabView's tab-change
             // trigger and app-foreground, as the coordinator contract requires.
-            guard forceRefresh || !hasPerformedInitialLoad else {
+            guard !readsLocalOnly else {
                 await refreshUnseenRequestKeys()
                 return
             }
@@ -231,12 +260,23 @@ final class RequestsDashboardViewModel: ObservableObject {
         await refreshUnseenRequestKeys()
     }
 
-    private func refreshFilteredRequests() {
+    private func refreshFilteredRequests(updatingBadgeCounts: Bool = true) {
         guard let context = modelContext else { return }
-        filteredRides = filterManager.fetchFilteredRides(in: context, filter: filter)
-        filteredFavors = filterManager.fetchFilteredFavors(in: context, filter: filter)
+        let scope = communityContext.requestsScope
+        filteredRides = filterManager.fetchFilteredRides(in: context, filter: filter, scope: scope)
+        filteredFavors = filterManager.fetchFilteredFavors(in: context, filter: filter, scope: scope)
         filteredRequests = filterManager.getFilteredRequests(rides: filteredRides, favors: filteredFavors, filter: filter)
-        refreshFilterBadgeCounts()
+        // A narrow can outlive the second membership (the scope resets only when the narrowed
+        // community goes), and the person's own rows from a community they left are still read,
+        // so the hint is gated on the membership count, not only on the count of rows.
+        otherCommunitiesCount = communityContext.hasMultipleCommunities
+            ? filterManager.countOutsideScope(in: context, filter: filter, scope: scope)
+            : 0
+        // Open under All communities is the list just built; any other filter or scope reads it again.
+        openCounts = filter == .open && scope == .all
+            ? OpenRequestCounts(openRequests: filteredRequests)
+            : filterManager.openCounts(in: context)
+        if updatingBadgeCounts { refreshFilterBadgeCounts() }
     }
 
     private func refreshFilterBadgeCounts() {
@@ -246,7 +286,44 @@ final class RequestsDashboardViewModel: ObservableObject {
         }
         filterBadgeCounts = filterManager.computeFilterBadgeCounts(
             in: context,
-            requestNotificationSummaries: summaryManager.requestNotificationSummaries
+            requestNotificationSummaries: summaryManager.requestNotificationSummaries,
+            scope: communityContext.requestsScope
+        )
+    }
+
+    /// The Requests narrow changed: re-filter the local rows. Local only, no network.
+    func requestsScopeDidChange() {
+        refreshFilteredRequests()
+    }
+
+    // MARK: - Header
+
+    /// The header rules: a guest or a person with no community sees "Requests"; one membership,
+    /// or a list narrowed to one active community, shows that community's name and join rule;
+    /// otherwise "All communities" with the community chips (a list that leaves some out included).
+    static func header(
+        scope: RequestsScope,
+        activeMemberships: [CommunityMembership],
+        isGuest: Bool
+    ) -> RequestsHeader {
+        guard !isGuest, let first = activeMemberships.first else {
+            return RequestsHeader(title: "requests_nav_title".localized, subtitle: nil, showsCommunityChips: false)
+        }
+        if activeMemberships.count == 1 {
+            return communityHeader(first)
+        }
+        if case .community(let id) = scope,
+           let narrowed = activeMemberships.first(where: { $0.communityId == id }) {
+            return communityHeader(narrowed)
+        }
+        return RequestsHeader(title: "community_all_communities".localized, subtitle: nil, showsCommunityChips: true)
+    }
+
+    private static func communityHeader(_ membership: CommunityMembership) -> RequestsHeader {
+        RequestsHeader(
+            title: membership.name,
+            subtitle: CommunityJoinPolicy(rawValue: membership.joinPolicy)?.subtitleText,
+            showsCommunityChips: false
         )
     }
 }

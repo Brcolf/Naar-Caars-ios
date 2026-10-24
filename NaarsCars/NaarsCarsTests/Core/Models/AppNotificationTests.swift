@@ -164,6 +164,33 @@ final class AppNotificationTests: XCTestCase {
         XCTAssertNil(notification.rideId)
     }
     
+    func testDecode_MembershipUpdateRowKeepsCommunityId() throws {
+        // Given: a membership_update row that names its community
+        let json = """
+        {
+            "id": "123e4567-e89b-12d3-a456-426614174001",
+            "user_id": "223e4567-e89b-12d3-a456-426614174000",
+            "type": "membership_update",
+            "title": "You're in",
+            "body": "You were approved",
+            "read": false,
+            "pinned": false,
+            "created_at": "2026-10-19T12:00:00Z",
+            "community_id": "623e4567-e89b-12d3-a456-426614174000"
+        }
+        """.data(using: .utf8)!
+
+        // When: Decoding
+        let decoder = JSONDecoder()
+        decoder.dateDecodingStrategy = .iso8601
+        let notification = try decoder.decode(AppNotification.self, from: json)
+
+        // Then: the type is known and the community is kept
+        XCTAssertEqual(notification.type, .membershipUpdate)
+        XCTAssertEqual(notification.typeRawValue, "membership_update")
+        XCTAssertEqual(notification.communityId?.uuidString.lowercased(), "623e4567-e89b-12d3-a456-426614174000")
+    }
+
     func testNotificationTypeIcon() {
         // Test that all notification types have icons
         let types: [NotificationType] = [

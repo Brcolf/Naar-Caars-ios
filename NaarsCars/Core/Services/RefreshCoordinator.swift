@@ -11,7 +11,7 @@ import SwiftData
 ///
 /// INVARIANTS:
 /// - At most ONE refresh Task per domain at any time (enforced by isInFlight guard + assert)
-/// - Tasks are cancelled ONLY during reset() (sign-out)
+/// - Tasks are cancelled ONLY during reset() (sign-out), which waits (bounded) for them to finish
 /// - All engine calls happen in executeFullSync/executeTargetedSync (nowhere else)
 /// - State transitions: .refreshing never transitions to .refreshing
 @MainActor
@@ -44,6 +44,12 @@ final class RefreshCoordinator {
     private var failureCounts: [Domain: Int] = [:]
     private var lastTriggers: [Domain: String] = [:]
     private var lastResults: [Domain: RefreshResult] = [:]
+    /// When the last full sync that completed had started, per domain. A targeted sync never counts.
+    private var lastFullSyncAt: [Domain: Date] = [:]
+    /// The last moment the server may have written rows that no full sync has fetched yet: a push
+    /// (every `performTargetedRefresh` caller is a push path), an app foreground (a push delivered
+    /// while the app was suspended) or a session start. Read by `fullSyncIsCurrent(_:)`.
+    private var lastServerSignalAt: Date = .distantPast
     private var safetyPollTimer: Timer?
 
     private(set) var visibleDomain: Domain?
@@ -57,6 +63,8 @@ final class RefreshCoordinator {
     // MARK: - Initialization
 
     func initializeStates(modelContext: ModelContext? = nil) {
+        // A session starts: a full sync from before it (a guest's fetches no bell rows) is not current.
+        lastServerSignalAt = Date()
         for domain in Domain.allCases {
             states[domain] = determineInitialState(domain, modelContext: modelContext)
         }
@@ -116,6 +124,10 @@ final class RefreshCoordinator {
     /// The 30s staleness window guarantees the next full sync runs within 30s of
     /// the in-flight one completing, catching any subsequent changes.
     func performTargetedRefresh(_ domain: Domain, entityId: UUID, trigger: String) {
+        // A push may have created rows a targeted sync does not fetch (bell rows), so no full sync
+        // that started before now is current. Not keyed on the trigger text: the silent-push path
+        // (AppDelegate) says "backgroundPush:", the foreground path "push:".
+        lastServerSignalAt = Date()
         if domain == .badges {
             lastTriggers[domain] = trigger
             logDecision(domain: domain, trigger: trigger, decision: "started(badges)")
@@ -151,7 +163,17 @@ final class RefreshCoordinator {
     /// in-flight dedup is untouched (a second caller joins; it never duplicates).
     /// Returns the terminal result recorded for `domain` (`.completed` / `.failed`), or nil if the
     /// coordinator was reset (sign-out) while waiting.
-    func forceFullRefreshAndWait(_ domain: Domain, trigger: String) async -> RefreshResult? {
+    ///
+    /// `unlessCurrent` (default false): skip, returning `.skipped(.fresh)`, when nothing is in flight
+    /// and a full sync of `domain` completed within the staleness window and started after the last
+    /// push, app foreground or session start (`fullSyncIsCurrent(_:)`). For a screen's open, which
+    /// is not a reload; pull-to-refresh and Retry keep the default.
+    func forceFullRefreshAndWait(_ domain: Domain, trigger: String, unlessCurrent: Bool = false) async -> RefreshResult? {
+        if unlessCurrent, !isInFlight(domain), fullSyncIsCurrent(domain) {
+            logDecision(domain: domain, trigger: trigger, decision: "skipped:current")
+            lastResults[domain] = .skipped(.fresh)
+            return .skipped(.fresh)
+        }
         forceFullRefresh(domain, trigger: trigger)
         guard case .refreshing(let task, _) = states[domain] else {
             return lastResults[domain]
@@ -171,6 +193,8 @@ final class RefreshCoordinator {
     // MARK: - Public API: Lifecycle
 
     func handleAppForegrounded() {
+        // A push delivered while the app was suspended reaches no handler; a foreground implies it.
+        lastServerSignalAt = Date()
         startSafetyPoll()
         // Badges always refresh eagerly
         Task {
@@ -197,8 +221,33 @@ final class RefreshCoordinator {
         safetyPollTimer = nil
     }
 
-    /// Sign-out teardown. Cancels all in-flight tasks, clears all state.
-    func reset() {
+    /// Sign-out teardown. Cancels all in-flight tasks, waits for them to finish, clears all state.
+    ///
+    /// The wait closes a sign-out race: a sync job that has entered `BackgroundSyncActor` does not
+    /// check cancellation and runs to its `save()`, and the caller wipes SwiftData right after this
+    /// returns, so returning first let the job's rows outlive sign-out. An engine checks
+    /// `Task.isCancelled` before entering the actor, so a cancelled task that has not entered it
+    /// ends at once. While waiting, the cancelled domains stay `.refreshing`, so a trigger in that
+    /// window joins instead of starting a new sync. The wait ends after `drainTimeout` regardless.
+    func reset(drainTimeout: TimeInterval = Constants.Timing.refreshResetDrainTimeout) async {
+        stopSafetyPoll()
+        var cancelledTasks: [Task<Void, Never>] = []
+        for (_, state) in states {
+            if case .refreshing(let task, _) = state {
+                task.cancel()
+                cancelledTasks.append(task)
+            }
+        }
+        // A forceFullRefreshAndWait caller resumed by a cancelled task reads nil, as documented.
+        lastResults.removeAll()
+        if !cancelledTasks.isEmpty {
+            let finished = await Self.waitForCompletion(of: cancelledTasks, timeout: drainTimeout)
+            if !finished {
+                AppLogger.warning("refresh", "reset: cancelled refreshes still running after \(drainTimeout)s")
+            }
+        }
+        // A refresh started for another domain while waiting is cancelled too (not awaited), so
+        // it cannot mark its domain hydrated after the state below is cleared.
         for (_, state) in states {
             if case .refreshing(let task, _) = state {
                 task.cancel()
@@ -208,10 +257,35 @@ final class RefreshCoordinator {
         failureCounts.removeAll()
         lastTriggers.removeAll()
         lastResults.removeAll()
-        stopSafetyPoll()
+        lastFullSyncAt.removeAll()
+        lastServerSignalAt = .distantPast
         visibleDomain = nil
         activeConversationId = nil
         clearAllSyncTimestamps()
+    }
+
+    /// Waits until every task in `tasks` has finished or `timeout` seconds have passed, and
+    /// returns false on timeout. `Task.value` keeps waiting when its waiter is cancelled, so a task
+    /// group cannot bound it (the group waits for every child); the two waits race through a stream.
+    private static func waitForCompletion(of tasks: [Task<Void, Never>], timeout: TimeInterval) async -> Bool {
+        let (outcomes, continuation) = AsyncStream.makeStream(of: Bool.self)
+        let waiter = Task {
+            for task in tasks { await task.value }
+            continuation.yield(true)
+        }
+        let timer = Task {
+            do { try await Task.sleep(for: .seconds(timeout)) } catch { return }
+            continuation.yield(false)
+        }
+        var finished = false
+        for await outcome in outcomes {
+            finished = outcome
+            break
+        }
+        timer.cancel()
+        waiter.cancel()
+        continuation.finish()
+        return finished
     }
 
     // MARK: - Refresh Decision Logic
@@ -232,6 +306,15 @@ final class RefreshCoordinator {
         }
     }
 
+    /// True when the domain is hydrated by a full sync that started after `lastServerSignalAt` (the
+    /// last push, app foreground or session start) and is still within the staleness window. A
+    /// targeted sync marks the domain hydrated too, but it runs only for a push, which sets
+    /// `lastServerSignalAt`.
+    private func fullSyncIsCurrent(_ domain: Domain) -> Bool {
+        guard case .hydrated = states[domain], let at = lastFullSyncAt[domain] else { return false }
+        return at > lastServerSignalAt && Date().timeIntervalSince(at) < stalenessWindow
+    }
+
     // MARK: - Single Task Creation Point
 
     /// ALL refresh execution goes through this method.
@@ -242,6 +325,8 @@ final class RefreshCoordinator {
         let hasCache = lastSyncTimestamp(domain) != nil
         lastTriggers[domain] = trigger
         logDecision(domain: domain, trigger: trigger, decision: "started(\(mode))")
+        // The start, not the end: a push that lands while the fetch runs may not be in it.
+        let startedAt = Date()
 
         let task = Task { [weak self] in
             do {
@@ -253,6 +338,7 @@ final class RefreshCoordinator {
                     metrics = try await self?.executeTargetedSync(domain, entityId: entityId) ?? .empty
                 }
                 guard !Task.isCancelled else { return }
+                if case .full = mode { self?.lastFullSyncAt[domain] = startedAt }
                 self?.markSyncCompleted(domain, metrics: metrics)
             } catch is CancellationError {
                 // sign-out cancelled this task — no state update
@@ -270,6 +356,9 @@ final class RefreshCoordinator {
     /// Dispatches full sync to the appropriate engine.
     /// Later tasks will wire these to actual engine implementations.
     private func executeFullSync(_ domain: Domain) async throws -> RefreshMetrics {
+        #if DEBUG
+        if let fullSyncOverrideForTesting { return try await fullSyncOverrideForTesting(domain) }
+        #endif
         switch domain {
         case .dashboard:
             return try await DashboardSyncEngine.shared.performFullSync()
@@ -426,8 +515,12 @@ final class RefreshCoordinator {
     // MARK: - Testing Helpers
 
     #if DEBUG
+    /// Stands in for the engine of every full sync on this instance (tests only; never set on `shared`).
+    var fullSyncOverrideForTesting: ((Domain) async throws -> RefreshMetrics)?
+
     func markSyncedForTesting(_ domain: Domain, at date: Date = Date()) {
         states[domain] = .hydrated(lastSync: date)
+        lastFullSyncAt[domain] = date
         UserDefaults.standard.set(date, forKey: "refresh.lastSync.\(domain.rawValue)")
     }
 

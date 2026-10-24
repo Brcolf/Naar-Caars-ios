@@ -42,6 +42,7 @@ enum NotificationTypeRegistry {
         "user_approved",
         "user_rejected",
         "account_restricted",
+        "membership_update",
         "other"
     ]
 

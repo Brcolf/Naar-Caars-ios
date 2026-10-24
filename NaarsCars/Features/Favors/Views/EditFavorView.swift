@@ -13,6 +13,7 @@ struct EditFavorView: View {
     var onSaved: (() -> Void)? = nil
     @StateObject private var viewModel = CreateFavorViewModel() // Reuse CreateFavorViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var communityContext = CommunityContext.shared
     @State private var error: String?
     @State private var showSuccess = false
     @State private var showDiscardConfirmation = false
@@ -25,6 +26,13 @@ struct EditFavorView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let communityText = communityContext.chipText(for: favor.communityId, respectingScope: false) {
+                    Section {
+                        NaarsChip(text: communityText, tint: nil)
+                            .accessibilityLabel("community_chip_accessibility".localized(with: communityText))
+                    }
+                }
+
                 Section("favor_edit_title_description".localized) {
                     TextField("favor_edit_title_field".localized, text: $viewModel.title)
                     TextField("favor_edit_description".localized, text: $viewModel.description, axis: .vertical)

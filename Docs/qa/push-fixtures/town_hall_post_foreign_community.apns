@@ -1,0 +1,12 @@
+{
+  "aps": {
+    "alert": {
+      "title": "New Town Hall post",
+      "body": "Fixture: town_hall_post for a community the person is not in"
+    },
+    "sound": "default"
+  },
+  "type": "town_hall_post",
+  "town_hall_post_id": "00000000-0000-4000-8000-000000000001",
+  "community_id": "00000000-0000-4000-8000-000000000001"
+}

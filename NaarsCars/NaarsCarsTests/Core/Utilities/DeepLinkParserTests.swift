@@ -119,7 +119,7 @@ final class DeepLinkParserTests: XCTestCase {
         
         let deepLink = DeepLinkParser.parse(userInfo: userInfo)
         
-        if case .townHallPostComments(let id) = deepLink {
+        if case .townHallPostComments(let id, _) = deepLink {
             XCTAssertEqual(id, postId, "Should parse town hall post ID correctly")
         } else {
             XCTFail("Expected .townHallPostComments deep link, got \(deepLink)")
@@ -141,6 +141,41 @@ final class DeepLinkParserTests: XCTestCase {
         }
     }
     
+    /// `pending_approval` for a community (multi-community Phase 2) opens that community's
+    /// Requests to join.
+    func testParse_PendingApprovalWithCommunityIdRoutesToPendingMembers() {
+        let communityId = UUID()
+        let userInfo: [AnyHashable: Any] = [
+            "type": "pending_approval",
+            "user_id": UUID().uuidString,
+            "community_id": communityId.uuidString
+        ]
+
+        let deepLink = DeepLinkParser.parse(userInfo: userInfo)
+
+        if case .pendingMembers(let routedId) = deepLink {
+            XCTAssertEqual(routedId, communityId)
+        } else {
+            XCTFail("Expected .pendingMembers deep link, got \(deepLink)")
+        }
+    }
+
+    /// A `community_id` that is not a UUID keeps the platform route.
+    func testParse_PendingApprovalWithMalformedCommunityIdStaysPendingUsers() {
+        let userInfo: [AnyHashable: Any] = [
+            "type": "pending_approval",
+            "community_id": "not-a-uuid"
+        ]
+
+        let deepLink = DeepLinkParser.parse(userInfo: userInfo)
+
+        if case .pendingUsers = deepLink {
+            XCTAssertTrue(true)
+        } else {
+            XCTFail("Expected .pendingUsers deep link, got \(deepLink)")
+        }
+    }
+
     /// Test parsing review request notification
     func testParse_ReviewRequestNotification() {
         let rideId = UUID()
@@ -226,7 +261,350 @@ final class DeepLinkParserTests: XCTestCase {
             XCTFail("Expected .unknown deep link for invalid UUID, got \(deepLink)")
         }
     }
+
+    // MARK: - Town Hall community_id (multi-community Phase 1)
+
+    func testParse_TownHallTypesCarryCommunityIdWhenPresent() {
+        let postId = UUID()
+        let communityId = UUID()
+        for type in ["town_hall_post", "town_hall_comment", "town_hall_reaction"] {
+            let deepLink = DeepLinkParser.parse(userInfo: [
+                "type": type,
+                "town_hall_post_id": postId.uuidString,
+                "community_id": communityId.uuidString
+            ])
+            switch deepLink {
+            case .townHallPostComments(let id, let community) where type == "town_hall_post":
+                XCTAssertEqual(id, postId, type)
+                XCTAssertEqual(community, communityId, type)
+            case .townHallPostHighlight(let id, let community) where type != "town_hall_post":
+                XCTAssertEqual(id, postId, type)
+                XCTAssertEqual(community, communityId, type)
+            default:
+                XCTFail("Unexpected deep link for \(type): \(deepLink)")
+            }
+        }
+    }
+
+    func testParse_TownHallTypesWithoutCommunityIdParseAsBefore() {
+        let postId = UUID()
+        for type in ["town_hall_post", "town_hall_comment", "town_hall_reaction"] {
+            let deepLink = DeepLinkParser.parse(userInfo: [
+                "type": type,
+                "town_hall_post_id": postId.uuidString
+            ])
+            switch deepLink {
+            case .townHallPostComments(let id, let community) where type == "town_hall_post":
+                XCTAssertEqual(id, postId, type)
+                XCTAssertNil(community, type)
+            case .townHallPostHighlight(let id, let community) where type != "town_hall_post":
+                XCTAssertEqual(id, postId, type)
+                XCTAssertNil(community, type)
+            default:
+                XCTFail("Unexpected deep link for \(type): \(deepLink)")
+            }
+        }
+    }
+
+    func testParse_ContentHiddenTownHallPostCarriesCommunityId() {
+        let postId = UUID()
+        let communityId = UUID()
+
+        let withCommunity = DeepLinkParser.parse(userInfo: [
+            "type": "content_hidden",
+            "town_hall_post_id": postId.uuidString,
+            "community_id": communityId.uuidString
+        ])
+        guard case .townHallPostHighlight(let id, let community) = withCommunity else {
+            return XCTFail("Expected .townHallPostHighlight, got \(withCommunity)")
+        }
+        XCTAssertEqual(id, postId)
+        XCTAssertEqual(community, communityId)
+
+        let withoutCommunity = DeepLinkParser.parse(userInfo: [
+            "type": "content_hidden",
+            "town_hall_post_id": postId.uuidString
+        ])
+        guard case .townHallPostHighlight(let idWithout, let communityWithout) = withoutCommunity else {
+            return XCTFail("Expected .townHallPostHighlight, got \(withoutCommunity)")
+        }
+        XCTAssertEqual(idWithout, postId)
+        XCTAssertNil(communityWithout)
+    }
+
+    // MARK: - content_reported and account_restricted (multi-community Phase 3)
+
+    /// A community owner's or admin's `content_reported` push carries `community_id` and opens
+    /// that community's reports.
+    func testParse_ContentReportedWithCommunityIdRoutesToCommunityReports() {
+        let communityId = UUID()
+        let deepLink = DeepLinkParser.parse(userInfo: [
+            "type": "content_reported",
+            "report_id": UUID().uuidString,
+            "target_type": "town_hall_post",
+            "town_hall_post_id": UUID().uuidString,
+            "community_id": communityId.uuidString
+        ])
+
+        guard case .communityReports(let routedId) = deepLink else {
+            return XCTFail("Expected .communityReports deep link, got \(deepLink)")
+        }
+        XCTAssertEqual(routedId, communityId)
+    }
+
+    /// A platform admin's push has no `community_id` and keeps the platform reports route.
+    func testParse_ContentReportedWithoutCommunityIdStaysAdminReports() {
+        let deepLink = DeepLinkParser.parse(userInfo: [
+            "type": "content_reported",
+            "report_id": UUID().uuidString,
+            "target_type": "town_hall_post",
+            "town_hall_post_id": UUID().uuidString
+        ])
+
+        guard case .adminReports = deepLink else {
+            return XCTFail("Expected .adminReports deep link, got \(deepLink)")
+        }
+    }
+
+    /// A `community_id` that is not a UUID keeps the platform route.
+    func testParse_ContentReportedWithMalformedCommunityIdStaysAdminReports() {
+        let deepLink = DeepLinkParser.parse(userInfo: [
+            "type": "content_reported",
+            "community_id": "not-a-uuid"
+        ])
+
+        guard case .adminReports = deepLink else {
+            return XCTFail("Expected .adminReports deep link, got \(deepLink)")
+        }
+    }
+
+    /// A removal (`account_restricted`) opens My communities, with or without `community_id`.
+    func testParse_AccountRestrictedRoutesToMyCommunities() {
+        let withCommunity = DeepLinkParser.parse(userInfo: [
+            "type": "account_restricted",
+            "community_id": UUID().uuidString
+        ])
+        guard case .myCommunities = withCommunity else {
+            return XCTFail("Expected .myCommunities deep link, got \(withCommunity)")
+        }
+
+        let withoutCommunity = DeepLinkParser.parse(userInfo: ["type": "account_restricted"])
+        guard case .myCommunities = withoutCommunity else {
+            return XCTFail("Expected .myCommunities deep link, got \(withoutCommunity)")
+        }
+    }
+
+    // MARK: - membership_update and the announcement push (multi-community Phase 4)
+
+    /// Approved into a further community (`membership_event` `approved`): My communities.
+    func testParse_MembershipUpdateApprovedOpensMyCommunities() {
+        let deepLink = DeepLinkParser.parse(userInfo: [
+            "type": "membership_update",
+            "membership_event": "approved",
+            "community_id": UUID().uuidString
+        ])
+        guard case .myCommunities = deepLink else {
+            return XCTFail("Expected .myCommunities deep link, got \(deepLink)")
+        }
+    }
+
+    /// Made an owner (`membership_event` `owner` with `community_id`): that community's members.
+    func testParse_MembershipUpdateOwnerWithCommunityOpensMembers() {
+        let communityId = UUID()
+        let deepLink = DeepLinkParser.parse(userInfo: [
+            "type": "membership_update",
+            "membership_event": "owner",
+            "community_id": communityId.uuidString
+        ])
+        guard case .communityMembers(let routedId) = deepLink else {
+            return XCTFail("Expected .communityMembers deep link, got \(deepLink)")
+        }
+        XCTAssertEqual(routedId, communityId)
+    }
+
+    /// An owner event without a (well-formed) community falls back to My communities.
+    func testParse_MembershipUpdateOwnerWithoutCommunityOpensMyCommunities() {
+        let withoutCommunity = DeepLinkParser.parse(userInfo: [
+            "type": "membership_update",
+            "membership_event": "owner"
+        ])
+        guard case .myCommunities = withoutCommunity else {
+            return XCTFail("Expected .myCommunities deep link, got \(withoutCommunity)")
+        }
+
+        let malformedCommunity = DeepLinkParser.parse(userInfo: [
+            "type": "membership_update",
+            "membership_event": "owner",
+            "community_id": "not-a-uuid"
+        ])
+        guard case .myCommunities = malformedCommunity else {
+            return XCTFail("Expected .myCommunities deep link, got \(malformedCommunity)")
+        }
+    }
+
+    /// An event this build does not know, or none at all, opens My communities.
+    func testParse_MembershipUpdateUnknownOrMissingEventOpensMyCommunities() {
+        let payloads: [[AnyHashable: Any]] = [
+            ["type": "membership_update", "membership_event": "admin", "community_id": UUID().uuidString],
+            ["type": "membership_update", "community_id": UUID().uuidString],
+            ["type": "membership_update"]
+        ]
+        for payload in payloads {
+            let deepLink = DeepLinkParser.parse(userInfo: payload)
+            guard case .myCommunities = deepLink else {
+                return XCTFail("Expected .myCommunities deep link for \(payload), got \(deepLink)")
+            }
+        }
+    }
+
+    /// The payload the real announcement push sends (SQL plan File B; `broadcast_community.apns`)
+    /// opens Announcements at its notification, and the push refreshes Town Hall.
+    func testParse_BroadcastPushOpensAnnouncementsAtItsNotification() {
+        let notificationId = UUID()
+        let payload: [AnyHashable: Any] = [
+            "type": "broadcast",
+            "notification_id": notificationId.uuidString,
+            "community_id": UUID().uuidString,
+            "town_hall_post_id": UUID().uuidString
+        ]
+
+        let deepLink = DeepLinkParser.parse(userInfo: payload)
+        guard case .announcements(let routedId) = deepLink else {
+            return XCTFail("Expected .announcements deep link, got \(deepLink)")
+        }
+        XCTAssertEqual(routedId, notificationId)
+
+        XCTAssertEqual(
+            PushRefreshPlan.make(userInfo: payload),
+            PushRefreshPlan(domains: [.townHall], entityId: nil, refreshesMemberships: false)
+        )
+    }
+
+    /// The "Communities merged" announcement (`community_merged_announcement.apns`, 20261021_0022) opens
+    /// Announcements at its notification, and the push refreshes the memberships and the dashboard as
+    /// well as Town Hall: the merged community is gone and its requests moved to the survivor.
+    func testCommunityMergedAnnouncement_OpensAnnouncementsAndRefreshesMemberships() {
+        let notificationId = UUID()
+        let payload: [AnyHashable: Any] = [
+            "type": "announcement",
+            "notification_id": notificationId.uuidString,
+            "community_id": UUID().uuidString,
+            "town_hall_post_id": UUID().uuidString,
+            "community_event": "merged"
+        ]
+
+        let deepLink = DeepLinkParser.parse(userInfo: payload)
+        guard case .announcements(let routedId) = deepLink else {
+            return XCTFail("Expected .announcements deep link, got \(deepLink)")
+        }
+        XCTAssertEqual(routedId, notificationId)
+
+        XCTAssertEqual(
+            PushRefreshPlan.make(userInfo: payload),
+            PushRefreshPlan(domains: [.townHall, .dashboard], entityId: nil, refreshesMemberships: true)
+        )
+    }
+
+    /// A merge proposal (`merge_proposal_announcement.apns`) is an announcement to the other owner: it opens
+    /// Announcements and changes no membership.
+    func testMergeProposalPush_OpensAnnouncements() {
+        let notificationId = UUID()
+        let payload: [AnyHashable: Any] = [
+            "type": "announcement",
+            "notification_id": notificationId.uuidString,
+            "community_id": UUID().uuidString
+        ]
+
+        let deepLink = DeepLinkParser.parse(userInfo: payload)
+        guard case .announcements(let routedId) = deepLink else {
+            return XCTFail("Expected .announcements deep link, got \(deepLink)")
+        }
+        XCTAssertEqual(routedId, notificationId)
+
+        XCTAssertEqual(
+            PushRefreshPlan.make(userInfo: payload),
+            PushRefreshPlan(domains: [.townHall], entityId: nil, refreshesMemberships: false)
+        )
+    }
+
+    // MARK: - Universal Link: https://naarscars.com/join#<code> (multi-community Phase 4)
+
+    private func parsedCode(_ string: String) -> String? {
+        guard let url = URL(string: string) else {
+            XCTFail("Not a URL: \(string)")
+            return nil
+        }
+        if case .joinCommunity(let code) = DeepLinkParser.parse(url: url) {
+            return code
+        }
+        return nil
+    }
+
+    private func assertUnknown(_ string: String, file: StaticString = #filePath, line: UInt = #line) {
+        guard let url = URL(string: string) else {
+            return XCTFail("Not a URL: \(string)", file: file, line: line)
+        }
+        let deepLink = DeepLinkParser.parse(url: url)
+        guard case .unknown = deepLink else {
+            return XCTFail("Expected .unknown for \(string), got \(deepLink.logDescription)", file: file, line: line)
+        }
+    }
+
+    func testParseURL_JoinWithWellFormedFragment() {
+        XCTAssertEqual(parsedCode("https://naarscars.com/join#NC7K2PQ9XA"), "NC7K2PQ9XA")
+    }
+
+    /// Lower case and separators are normalized; a percent-encoded space is decoded first
+    /// (reading `url.fragment` would keep "%20" and leave a 12-character code that is refused).
+    func testParseURL_NormalizesCaseAndSeparators() {
+        XCTAssertEqual(parsedCode("https://naarscars.com/join#nc7k-2pq9-xa"), "NC7K2PQ9XA")
+        XCTAssertEqual(parsedCode("https://naarscars.com/join#NC7K%202PQ9XA"), "NC7K2PQ9XA")
+        XCTAssertEqual(parsedCode("HTTPS://NAARSCARS.COM/join#NC7K2PQ9XA"), "NC7K2PQ9XA")
+    }
+
+    func testParseURL_TrailingSlashPath() {
+        XCTAssertEqual(parsedCode("https://naarscars.com/join/#NC7K2PQ9XA"), "NC7K2PQ9XA")
+    }
+
+    func testParseURL_MalformedOrMissingCodeIsUnknown() {
+        assertUnknown("https://naarscars.com/join")
+        assertUnknown("https://naarscars.com/join#")
+        assertUnknown("https://naarscars.com/join#NC123")
+        assertUnknown("https://naarscars.com/join#NC7K2PQ9X0")
+    }
+
+    func testParseURL_OtherHostSchemeOrPathIsUnknown() {
+        assertUnknown("https://www.naarscars.com/join#NC7K2PQ9XA")
+        assertUnknown("http://naarscars.com/join#NC7K2PQ9XA")
+        assertUnknown("https://naarscars.co/join#NC7K2PQ9XA")
+        assertUnknown("https://naarscars.com/joinx#NC7K2PQ9XA")
+        assertUnknown("https://naarscars.com/invite#NC7K2PQ9XA")
+        assertUnknown("naarscars://join#NC7K2PQ9XA")
+    }
+
+    /// The code is read from the fragment only, which never reaches the web server.
+    func testParseURL_CodeInQueryOrPathIsIgnored() {
+        assertUnknown("https://naarscars.com/join?code=NC7K2PQ9XA")
+        assertUnknown("https://naarscars.com/join/NC7K2PQ9XA")
+        // A query beside a good fragment is ignored, not read.
+        XCTAssertEqual(parsedCode("https://naarscars.com/join?code=NCAAAAAAAA#NC7K2PQ9XA"), "NC7K2PQ9XA")
+    }
+
+    func testJoinCommunityLogDescriptionHidesTheCode() {
+        let deepLink = DeepLink.joinCommunity(code: "NC7K2PQ9XA")
+        XCTAssertFalse(deepLink.logDescription.contains("NC7K2PQ9XA"))
+        XCTAssertEqual(deepLink.logDescription, "joinCommunity(<code>)")
+        XCTAssertEqual(DeepLink.dashboard.logDescription, "dashboard")
+    }
+
+    func testJoinLink_RoundTripsThroughTheParser() {
+        let code = "NC7K2PQ9XA"
+        let link = Constants.URLs.joinLink(code: code)
+        XCTAssertEqual(link, "https://naarscars.com/join#NC7K2PQ9XA")
+        guard let url = URL(string: link) else { return XCTFail("Not a URL: \(link)") }
+        guard case .joinCommunity(let parsed) = DeepLinkParser.parse(url: url) else {
+            return XCTFail("Expected .joinCommunity for \(link)")
+        }
+        XCTAssertEqual(parsed, code)
+    }
 }
-
-
-

@@ -124,7 +124,7 @@ struct PostCommentsView: View {
                         if let replyingToId = replyingTo,
                            let parentComment = viewModel.findComment(id: replyingToId) {
                             HStack {
-                                Text("townhall_replying_to".localized(with: parentComment.author?.name ?? "townhall_unknown".localized))
+                                Text("townhall_replying_to".localized(with: parentComment.author?.name ?? "community_former_member".localized))
                                     .font(.naarsCaption)
                                     .foregroundColor(.secondary)
                                 Spacer()
@@ -384,7 +384,7 @@ struct CommentRow: View {
                 .buttonStyle(PlainButtonStyle())
                 .accessibilityHint("townhall_author_profile_hint".localized)
             } else {
-                Text("townhall_unknown".localized)
+                Text("community_former_member".localized)
                     .font(.naarsCaption)
                     .foregroundColor(.secondary)
             }
@@ -894,3 +894,20 @@ final class PostCommentsViewModel: ObservableObject {
     PostCommentsView(postId: UUID())
 }
 
+#Preview("Former member comment") {
+    CommentRow(
+        comment: TownHallComment(
+            postId: UUID(),
+            userId: UUID(),
+            content: "A comment whose author is no longer visible.",
+            author: nil
+        ),
+        currentUserId: UUID(),
+        onReply: { _ in },
+        onVote: { _, _ in },
+        onDelete: { _ in },
+        depth: 0
+    )
+    .padding()
+    .environment(AppState())
+}

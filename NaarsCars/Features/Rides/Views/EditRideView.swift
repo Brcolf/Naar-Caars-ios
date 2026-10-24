@@ -13,6 +13,7 @@ struct EditRideView: View {
     var onSaved: (() -> Void)? = nil
     @StateObject private var viewModel = CreateRideViewModel() // Reuse CreateRideViewModel
     @Environment(\.dismiss) private var dismiss
+    @State private var communityContext = CommunityContext.shared
     @State private var error: String?
     @State private var showSuccess = false
     @State private var showDiscardConfirmation = false
@@ -25,6 +26,13 @@ struct EditRideView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if let communityText = communityContext.chipText(for: ride.communityId, respectingScope: false) {
+                    Section {
+                        NaarsChip(text: communityText, tint: nil)
+                            .accessibilityLabel("community_chip_accessibility".localized(with: communityText))
+                    }
+                }
+
                 Section("ride_edit_date_time".localized) {
                     DatePicker("ride_edit_date".localized, selection: $viewModel.date, displayedComponents: .date)
                         .datePickerStyle(.compact)

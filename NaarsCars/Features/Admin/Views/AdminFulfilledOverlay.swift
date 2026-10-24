@@ -14,7 +14,14 @@ struct AdminFulfilledOverlay: View {
     @State private var isLoading = false
     @State private var error: String?
 
-    private let adminService = AdminService.shared
+    /// nil = every community (platform admins); otherwise that community's figures.
+    let communityId: UUID?
+    private let adminService: any AdminServiceProtocol
+
+    init(communityId: UUID? = nil, service: any AdminServiceProtocol = AdminService.shared) {
+        self.communityId = communityId
+        self.adminService = service
+    }
 
     private var total: Int {
         periods.reduce(0) { $0 + $1.totalCount }
@@ -87,7 +94,7 @@ struct AdminFulfilledOverlay: View {
         defer { isLoading = false }
 
         do {
-            periods = try await adminService.fetchFulfilledBreakdown(period: selectedPeriod)
+            periods = try await adminService.fetchFulfilledBreakdown(communityId: communityId, period: selectedPeriod, count: 12)
         } catch {
             self.error = "common_load_error".localized
             AppLogger.error("admin", "Fulfilled overlay error: \(error.localizedDescription)")

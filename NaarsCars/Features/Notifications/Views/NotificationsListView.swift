@@ -138,7 +138,8 @@ struct NotificationsListView: View {
             // the failure is reported by the banner and the list stays.
             ErrorView(
                 error: error.localizedDescription,
-                retryAction: { Task { await viewModel.loadNotifications() } }
+                // Retry always reaches the network; only the open may be skipped by the coordinator.
+                retryAction: { Task { await viewModel.loadNotifications(forceRefresh: true) } }
             )
         } else if data.isEmpty {
             EmptyStateView(
@@ -195,7 +196,8 @@ struct NotificationsListView: View {
         NotificationRow(
             notification: group.primaryNotification,
             isReadOverride: !group.hasUnread,
-            groupCount: group.totalCount
+            groupCount: group.totalCount,
+            communityChipText: CommunityContext.shared.chipText(for: group.primaryNotification.communityId, respectingScope: false)
         ) {
             if NotificationGrouping.announcementTypes.contains(group.primaryNotification.type) {
                 AppLogger.info("notifications", "[NotificationsListView] Notification tapped type=announcement id=\(group.primaryNotification.id)")

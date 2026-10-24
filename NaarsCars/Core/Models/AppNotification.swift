@@ -66,6 +66,9 @@ enum NotificationType: String, Codable, CaseIterable {
     // Account restriction
     case accountRestricted = "account_restricted"
 
+    // Community membership (approved into a community, or made its owner)
+    case membershipUpdate = "membership_update"
+
     case other = "other"
     
     /// Icon name for notification type
@@ -102,6 +105,8 @@ enum NotificationType: String, Codable, CaseIterable {
             return "xmark.circle.fill"
         case .accountRestricted:
             return "exclamationmark.triangle.fill"
+        case .membershipUpdate:
+            return "person.2.badge.gearshape.fill"
         case .other:
             return "bell.fill"
         }
@@ -115,7 +120,8 @@ enum NotificationType: String, Codable, CaseIterable {
             return false
         case .announcement, .adminAnnouncement, .broadcast:  // Board announcements
             return false
-        case .userApproved, .userRejected, .accountRestricted:  // Account status
+        case .userApproved, .userRejected, .accountRestricted,  // Account status
+             .membershipUpdate:  // Community membership changes
             return false
         case .pendingApproval:  // Admin must see pending users
             return false
@@ -153,6 +159,20 @@ enum NotificationType: String, Codable, CaseIterable {
     #endif
 }
 
+// MARK: - Tolerant Decoding
+
+extension NotificationType {
+    /// Decodes any raw string. A type this build does not know (a future server-side
+    /// notification type) decodes as `.other` so one new type cannot fail a whole
+    /// notification list decode. `init(rawValue:)` is unchanged and still returns nil
+    /// for unknown strings; encoding stays synthesized (writes the raw value).
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let raw = try container.decode(String.self)
+        self = NotificationType(rawValue: raw) ?? .other
+    }
+}
+
 // MARK: - Refresh Domain Mapping
 
 extension NotificationType {
@@ -170,7 +190,8 @@ extension NotificationType {
              .review, .reviewReceived, .reviewReminder, .reviewRequest,
              .contentReported,
              .pendingApproval, .userApproved, .userRejected,
-             .accountRestricted:
+             .accountRestricted,
+             .membershipUpdate:
             return [.dashboard]
         case .townHallPost, .townHallComment, .townHallReaction,
              .announcement, .adminAnnouncement, .broadcast:
@@ -188,7 +209,8 @@ extension NotificationType {
         case .newFavor, .favorUpdate, .favorClaimed, .favorUnclaimed, .favorCompleted:
             return "favor_id"
         case .townHallPost, .townHallComment, .townHallReaction:
-            return "post_id"
+            // The push payload key the edge function sends (and DeepLinkParser reads).
+            return "town_hall_post_id"
         case .message, .addedToConversation:
             return "conversation_id"
         case .contentHidden:
@@ -204,6 +226,10 @@ struct AppNotification: Codable, Identifiable, Equatable, Sendable {
     let id: UUID
     let userId: UUID
     let type: NotificationType
+    /// The type string as the server sent it. Equal to `type.rawValue` except for a type this
+    /// build does not know (`type == .other`), where it keeps the original string so the cached
+    /// row (`SDNotification.type`) re-decodes as that type on a later build that knows it.
+    let typeRawValue: String
     let title: String
     let body: String?
     var read: Bool
@@ -217,6 +243,8 @@ struct AppNotification: Codable, Identifiable, Equatable, Sendable {
     let reviewId: UUID?
     let townHallPostId: UUID?
     let sourceUserId: UUID?  // Who triggered the notification (sender, claimer, etc.)
+    /// Community the notification concerns, when the server knows one.
+    let communityId: UUID?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -233,6 +261,7 @@ struct AppNotification: Codable, Identifiable, Equatable, Sendable {
         case reviewId = "review_id"
         case townHallPostId = "town_hall_post_id"
         case sourceUserId = "source_user_id"
+        case communityId = "community_id"
     }
     
     
@@ -250,11 +279,14 @@ struct AppNotification: Codable, Identifiable, Equatable, Sendable {
         conversationId: UUID? = nil,
         reviewId: UUID? = nil,
         townHallPostId: UUID? = nil,
-        sourceUserId: UUID? = nil
+        sourceUserId: UUID? = nil,
+        communityId: UUID? = nil,
+        typeRawValue: String? = nil
     ) {
         self.id = id
         self.userId = userId
         self.type = type
+        self.typeRawValue = typeRawValue ?? type.rawValue
         self.title = title
         self.body = body
         self.read = read
@@ -266,5 +298,52 @@ struct AppNotification: Codable, Identifiable, Equatable, Sendable {
         self.reviewId = reviewId
         self.townHallPostId = townHallPostId
         self.sourceUserId = sourceUserId
+        self.communityId = communityId
+    }
+}
+
+// MARK: - Coding
+
+extension AppNotification {
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(UUID.self, forKey: .id)
+        userId = try container.decode(UUID.self, forKey: .userId)
+        // Decoded once as a string: NotificationType's tolerant decoder would turn an unknown
+        // type into `.other` and lose the original.
+        let rawType = try container.decode(String.self, forKey: .type)
+        type = NotificationType(rawValue: rawType) ?? .other
+        typeRawValue = rawType
+        title = try container.decode(String.self, forKey: .title)
+        body = try container.decodeIfPresent(String.self, forKey: .body)
+        read = try container.decode(Bool.self, forKey: .read)
+        pinned = try container.decode(Bool.self, forKey: .pinned)
+        createdAt = try container.decode(Date.self, forKey: .createdAt)
+        rideId = try container.decodeIfPresent(UUID.self, forKey: .rideId)
+        favorId = try container.decodeIfPresent(UUID.self, forKey: .favorId)
+        conversationId = try container.decodeIfPresent(UUID.self, forKey: .conversationId)
+        reviewId = try container.decodeIfPresent(UUID.self, forKey: .reviewId)
+        townHallPostId = try container.decodeIfPresent(UUID.self, forKey: .townHallPostId)
+        sourceUserId = try container.decodeIfPresent(UUID.self, forKey: .sourceUserId)
+        communityId = try container.decodeIfPresent(UUID.self, forKey: .communityId)
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(id, forKey: .id)
+        try container.encode(userId, forKey: .userId)
+        try container.encode(typeRawValue, forKey: .type)
+        try container.encode(title, forKey: .title)
+        try container.encodeIfPresent(body, forKey: .body)
+        try container.encode(read, forKey: .read)
+        try container.encode(pinned, forKey: .pinned)
+        try container.encode(createdAt, forKey: .createdAt)
+        try container.encodeIfPresent(rideId, forKey: .rideId)
+        try container.encodeIfPresent(favorId, forKey: .favorId)
+        try container.encodeIfPresent(conversationId, forKey: .conversationId)
+        try container.encodeIfPresent(reviewId, forKey: .reviewId)
+        try container.encodeIfPresent(townHallPostId, forKey: .townHallPostId)
+        try container.encodeIfPresent(sourceUserId, forKey: .sourceUserId)
+        try container.encodeIfPresent(communityId, forKey: .communityId)
     }
 }

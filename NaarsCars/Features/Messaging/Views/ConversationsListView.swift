@@ -378,7 +378,9 @@ struct ConversationsListView: View {
                 viewModel.start()
                 loadSavedPreferences()
                 await viewModel.loadMutedConversations()
-                await viewModel.loadConversations()
+                // An appearance (tab visit, Back from a thread) is not a reload: the coordinator skips it
+                // when a current full sync covers it, and the repository publisher keeps the rows current.
+                await viewModel.loadConversations(forceRemote: false)
                 // Check push status and show banner / start moderate poll if disabled
                 await checkPushStatusAndStartPollIfNeeded()
             }

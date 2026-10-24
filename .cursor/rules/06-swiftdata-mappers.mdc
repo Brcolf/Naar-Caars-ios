@@ -19,3 +19,5 @@ Rules:
 
 3) Persistence writes happen in repositories/sync engines, not in Views.
 
+
+4) `Ride`, `Favor`, `TownHallPost` and `AppNotification` carry `communityId`; `SDRide`, `SDFavor`, `SDTownHallPost` and `SDNotification` (`communityId`, `UUID?`), their mappers and the sync engine upserts are updated together (nil means unknown: shown, and rewritten by the next sync). Only Town Hall fetches are scoped by `CommunityContext.communityTabId`; rides, favors and notifications are fetched unscoped, and the Requests narrow filters them on the client (`RequestFilterManager`).

@@ -15,6 +15,7 @@ struct RequestsDashboardView: View {
     @Environment(AppState.self) private var appState
     @StateObject private var viewModel = RequestsDashboardViewModel()
     @State private var navigationCoordinator = NavigationCoordinator.shared
+    @State private var communityContext = CommunityContext.shared
     @State private var showCreateRide = false
     @State private var showCreateFavor = false
     @State private var selectedRideId: UUID?
@@ -25,13 +26,27 @@ struct RequestsDashboardView: View {
     @State private var pendingFavorNavigation: UUID?
     @State private var highlightedRequestKey: String?
     @State private var highlightWorkItem: DispatchWorkItem?
+    /// The community page opened from the title menu. Item-driven, never a value-based link.
+    @State private var aboutCommunityId: UUID?
     
     var body: some View {
         NavigationStack {
             // List Content (map view removed)
             listContentView
             .id("app.entry.enterApp")
-            .navigationTitle("requests_nav_title".localized)
+            .navigationTitle(header.title)
+            // Any member gets the menu, of one community or several; a guest gets none.
+            .communityTitleMenu(enabled: titleMenuEnabled, subtitle: header.subtitle) {
+                titleMenuContent
+            }
+            .navigationDestination(item: $aboutCommunityId) { communityId in
+                // The same identity rule as Explore: another community in place needs a fresh view model.
+                CommunityPageView(communityId: communityId)
+                    .id(communityId)
+            }
+            .onChange(of: communityContext.requestsScope) { _, _ in
+                viewModel.requestsScopeDidChange()
+            }
             .toolbar {
                 ToolbarItemGroup(placement: .navigationBarTrailing) {
                     BellButton {
@@ -138,6 +153,9 @@ struct RequestsDashboardView: View {
             ScrollView {
                 LazyVStack(spacing: Constants.Spacing.md, pinnedViews: [.sectionHeaders]) {
                     Section(header: filterHeaderView) {
+                        if communityContext.hasMultipleCommunities && viewModel.otherCommunitiesCount > 0 {
+                            otherCommunitiesHint(count: viewModel.otherCommunitiesCount)
+                        }
                         if viewModel.isLoading && filteredRequests.isEmpty {
                             // Show skeleton loading
                             VStack(spacing: Constants.Spacing.md) {
@@ -224,9 +242,194 @@ struct RequestsDashboardView: View {
         }
     }
 
+    // MARK: - Title and title menu
+
+    /// The title, the subtitle and whether the community chips show (`RequestsDashboardViewModel.header`).
+    private var header: RequestsHeader {
+        RequestsDashboardViewModel.header(
+            scope: communityContext.requestsScope,
+            activeMemberships: communityContext.activeMemberships,
+            isGuest: appState.isGuest
+        )
+    }
+
+    /// The menu is for any member, however many communities they belong to. A guest has no
+    /// memberships and no menu.
+    private var titleMenuEnabled: Bool {
+        !appState.isGuest && !communityContext.activeMemberships.isEmpty
+    }
+
+    /// All communities and each community with its open count, then "About this community" and
+    /// "Find communities".
+    @ViewBuilder
+    private var titleMenuContent: some View {
+        let scope = communityContext.requestsScope
+        let openCounts = viewModel.openCounts
+        // Checked only for .all: a list that leaves some communities out is neither every
+        // community nor one, and choosing "All communities" includes every one again.
+        Button {
+            communityContext.requestsScope = .all
+        } label: {
+            if scope == .all {
+                Label("community_all_communities".localized, systemImage: "checkmark")
+            } else {
+                Text("community_all_communities".localized)
+            }
+            // Menu buttons show a second Text as the row's subtitle.
+            Text(Self.openCountText(openCounts.all))
+        }
+        .accessibilityAddTraits(scope == .all ? .isSelected : [])
+        .accessibilityIdentifier("requests.titleMenu.all")
+        ForEach(communityContext.activeMemberships) { membership in
+            let isSelected = scope == .community(membership.communityId)
+            Button {
+                communityContext.requestsScope = .community(membership.communityId)
+            } label: {
+                if isSelected {
+                    Label(membership.name, systemImage: "checkmark")
+                } else {
+                    Text(membership.name)
+                }
+                Text(Self.openCountText(openCounts.byCommunity[membership.communityId] ?? 0))
+            }
+            .accessibilityAddTraits(isSelected ? .isSelected : [])
+            .accessibilityIdentifier("requests.titleMenu.community")
+        }
+        Divider()
+        if let communityId = aboutTargetCommunityId {
+            Button {
+                aboutCommunityId = communityId
+            } label: {
+                Label("community_menu_about".localized, systemImage: "info.circle")
+            }
+            .accessibilityIdentifier("requests.titleMenu.about")
+        } else {
+            Menu {
+                ForEach(communityContext.activeMemberships) { membership in
+                    Button(membership.name) {
+                        aboutCommunityId = membership.communityId
+                    }
+                }
+            } label: {
+                Label("community_menu_about".localized, systemImage: "info.circle")
+            }
+            .accessibilityIdentifier("requests.titleMenu.about")
+        }
+        Button {
+            // Explore at its root, not on the screen last pushed there.
+            navigationCoordinator.pendingIntent = MyCommunitiesView.findCommunitiesIntent
+        } label: {
+            Label("community_menu_find".localized, systemImage: "magnifyingglass")
+        }
+        .accessibilityIdentifier("requests.titleMenu.find")
+    }
+
+    /// The community "About this community" opens directly: the only membership, or the one the
+    /// list is narrowed to. Nil when the person must pick one (the submenu).
+    private var aboutTargetCommunityId: UUID? {
+        let memberships = communityContext.activeMemberships
+        if memberships.count == 1 {
+            return memberships[0].communityId
+        }
+        if case .community(let id) = communityContext.requestsScope,
+           memberships.contains(where: { $0.communityId == id }) {
+            return id
+        }
+        return nil
+    }
+
+    /// "No open requests", "1 open request", "N open requests".
+    private static func openCountText(_ count: Int) -> String {
+        switch count {
+        case 0: return "requests_menu_open_count_none".localized
+        case 1: return "requests_menu_open_count_one".localized(with: count)
+        default: return "requests_menu_open_count_other".localized(with: count)
+        }
+    }
+
+    // MARK: - Community chips
+
+    /// "Showing N of your M communities" and one chip per active community. A tap includes or
+    /// leaves out that community; the last community still included cannot be left out.
+    private var communityChipsRow: some View {
+        let memberships = communityContext.activeMemberships
+        let scope = communityContext.requestsScope
+        let includedCount = memberships.filter { scope.includes($0.communityId) }.count
+        return VStack(alignment: .leading, spacing: Constants.Spacing.sm) {
+            Text("requests_showing_communities".localized(with: includedCount, memberships.count))
+                .font(.naarsSubheadline)
+                .foregroundColor(.naarsTextSecondary)
+                .padding(.horizontal)
+            // Scrolls sideways, so long names and accessibility sizes never push the tiles down.
+            ScrollView(.horizontal, showsIndicators: false) {
+                HStack(spacing: Constants.Spacing.sm) {
+                    ForEach(memberships) { membership in
+                        let isIncluded = scope.includes(membership.communityId)
+                        communityChip(
+                            membership,
+                            isIncluded: isIncluded,
+                            isLastIncluded: isIncluded && includedCount == 1
+                        )
+                    }
+                }
+                .padding(.horizontal)
+            }
+            .accessibilityIdentifier("requests.communityChips")
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    private func communityChip(_ membership: CommunityMembership, isIncluded: Bool, isLastIncluded: Bool) -> some View {
+        Button {
+            communityContext.toggleRequestsInclusion(membership.communityId)
+        } label: {
+            if isIncluded {
+                NaarsChip(text: membership.name, systemImage: "checkmark", tint: .naarsPrimary)
+            } else {
+                NaarsChip(text: membership.name, tint: nil, isStruckThrough: true)
+            }
+        }
+        .buttonStyle(.plain)
+        .disabled(isLastIncluded)
+        .accessibilityLabel(
+            (isIncluded ? "requests_chip_included_accessibility" : "requests_chip_excluded_accessibility")
+                .localized(with: membership.name)
+        )
+        // The last included chip is disabled; no hint promises an action it will not take.
+        .accessibilityHint(
+            isLastIncluded ? "" : (isIncluded ? "requests_chip_hint_exclude" : "requests_chip_hint_include").localized
+        )
+        .accessibilityIdentifier("requests.communityChip")
+    }
+
+    private func otherCommunitiesHint(count: Int) -> some View {
+        HStack(spacing: Constants.Spacing.sm) {
+            Text(String(format: (count == 1 ? "requests_other_communities_hint_one" : "requests_other_communities_hint_other").localized, count))
+                .font(.naarsSubheadline)
+                .foregroundColor(.naarsTextSecondary)
+                .accessibilityIdentifier("requests.otherCommunities.hint")
+            Spacer(minLength: 0)
+            Button("requests_other_communities_show_all".localized) {
+                communityContext.requestsScope = .all
+            }
+            .buttonStyle(.borderless)
+            .font(.naarsSubheadline)
+            .accessibilityLabel("requests_other_communities_show_all".localized)
+            .accessibilityIdentifier("requests.otherCommunities.showAll")
+        }
+        .padding(.horizontal)
+        .accessibilityElement(children: .contain)
+    }
+
     private var filterHeaderView: some View {
         VStack(spacing: 0) {
-            // Filter tiles (Open Requests, My Requests, Claimed Requests)
+            // Two or more communities and the list not narrowed to one: include or leave out each.
+            if header.showsCommunityChips {
+                communityChipsRow
+                    .padding(.top, 12)
+            }
+
+            // Filter tiles (Open, Mine, Helping)
             FilterTilesView(
                 selectedFilter: $viewModel.filter,
                 // Guests have no "mine" / "claimed" data; the tiles were always empty for them.
@@ -295,11 +498,15 @@ struct RequestsDashboardView: View {
     private func openRequest(from intent: NavigationIntent) {
         switch intent {
         case .ride(let rideId, let anchor):
+            // A request opened from a push while the community page is pushed replaces it, so the
+            // stack holds one of this screen's destinations at a time.
+            aboutCommunityId = nil
             selectedRideId = rideId
             if anchor == nil {
                 navigationCoordinator.pendingIntent = nil
             }
         case .favor(let favorId, let anchor):
+            aboutCommunityId = nil
             selectedFavorId = favorId
             if anchor == nil {
                 navigationCoordinator.pendingIntent = nil
@@ -435,17 +642,33 @@ struct FilterTile: View {
 
 // MARK: - Request Card View
 
+/// A ride or favor card with its community chip and, on every card whose community is known,
+/// the join-policy chip (Past Requests included).
 struct RequestCardView: View {
     let request: RequestItem
     let unreadCount: Int
+    /// Past Requests passes false: it is never narrowed, so it chips whenever the person has
+    /// two or more communities.
+    var respectsRequestsScope: Bool = true
+    @State private var communityContext = CommunityContext.shared
     
     var body: some View {
         Group {
             switch request {
             case .ride(let ride):
-                RideCard(ride: ride, unreadCount: unreadCount)
+                RideCard(
+                    ride: ride,
+                    unreadCount: unreadCount,
+                    communityChipText: communityContext.chipText(for: ride.communityId, respectingScope: respectsRequestsScope),
+                    policy: communityContext.joinPolicy(for: ride.communityId)
+                )
             case .favor(let favor):
-                FavorCard(favor: favor, unreadCount: unreadCount)
+                FavorCard(
+                    favor: favor,
+                    unreadCount: unreadCount,
+                    communityChipText: communityContext.chipText(for: favor.communityId, respectingScope: respectsRequestsScope),
+                    policy: communityContext.joinPolicy(for: favor.communityId)
+                )
             }
         }
     }
@@ -495,3 +718,34 @@ struct SkeletonRequestCard: View {
     RequestsDashboardView()
         .environment(AppState())
 }
+
+#if DEBUG
+#Preview("Three communities, one left out") {
+    let rows = [
+        PreviewCommunityService.membership(name: "Naar's Cars Seattle", memberCount: 140, isDefault: true),
+        PreviewCommunityService.membership(name: "Ballard Neighbors", role: .owner),
+        PreviewCommunityService.membership(name: "Capitol Hill Carpool")
+    ]
+    let _ = CommunityContext.shared.debugSetMemberships(rows)
+    let _ = CommunityContext.shared.requestsScope = .all
+    let _ = CommunityContext.shared.toggleRequestsInclusion(rows[2].communityId)
+    RequestsDashboardView()
+        .environment(AppState())
+}
+
+#Preview("One community") {
+    let _ = CommunityContext.shared.debugSetMemberships([
+        PreviewCommunityService.membership(name: "Ballard Neighbors", role: .owner)
+    ])
+    RequestsDashboardView()
+        .environment(AppState())
+}
+
+#Preview("Guest") {
+    let _ = CommunityContext.shared.debugSetMemberships([])
+    let guest = AppState()
+    let _ = guest.isGuestMode = true
+    RequestsDashboardView()
+        .environment(guest)
+}
+#endif

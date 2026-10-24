@@ -12,17 +12,21 @@ struct NotificationRow: View {
     let notification: AppNotification
     let isReadOverride: Bool?
     let groupCount: Int?
+    /// Names the community on the row; nil with one membership (no chip).
+    let communityChipText: String?
     let onTap: () -> Void
 
     init(
         notification: AppNotification,
         isReadOverride: Bool? = nil,
         groupCount: Int? = nil,
+        communityChipText: String? = nil,
         onTap: @escaping () -> Void
     ) {
         self.notification = notification
         self.isReadOverride = isReadOverride
         self.groupCount = groupCount
+        self.communityChipText = communityChipText
         self.onTap = onTap
     }
     
@@ -73,9 +77,16 @@ struct NotificationRow: View {
                             .lineLimit(2)
                     }
                     
-                    Text(notification.createdAt.timeAgoString)
-                        .font(.naarsCaption)
-                        .foregroundColor(.secondary)
+                    HStack(spacing: 8) {
+                        Text(notification.createdAt.timeAgoString)
+                            .font(.naarsCaption)
+                            .foregroundColor(.secondary)
+
+                        if let communityChipText {
+                            NaarsChip(text: communityChipText, tint: nil)
+                                .accessibilityIdentifier("notifications.row.community")
+                        }
+                    }
                 }
                 
                 // Unread indicator
@@ -94,7 +105,7 @@ struct NotificationRow: View {
         .buttonStyle(PlainButtonStyle())
         .accessibilityIdentifier("notifications.row")
         .accessibilityElement(children: .combine)
-        .accessibilityLabel("\(notification.title)\(notification.body.map { ", \($0)" } ?? ""), \(isRead ? "notifications_row_read_accessibility".localized : "notifications_row_unread_accessibility".localized), \(notification.createdAt.timeAgoString)")
+        .accessibilityLabel("\(notification.title)\(notification.body.map { ", \($0)" } ?? ""), \(isRead ? "notifications_row_read_accessibility".localized : "notifications_row_unread_accessibility".localized), \(notification.createdAt.timeAgoString)\(communityChipText.map { ", " + "community_chip_accessibility".localized(with: $0) } ?? "")")
         .accessibilityHint("notifications_row_open_hint".localized(with: notification.type.rawValue.replacingOccurrences(of: "_", with: " ")))
     }
 
@@ -138,9 +149,30 @@ struct NotificationRow: View {
             ),
             onTap: {}
         )
+
+        NotificationRow(
+            notification: AppNotification(
+                userId: UUID(),
+                type: .rideClaimed,
+                title: "Ride Claimed",
+                body: "Your ride request has been claimed",
+                read: false
+            ),
+            communityChipText: "Riverside Neighbors",
+            onTap: {}
+        )
+
+        NotificationRow(
+            notification: AppNotification(
+                userId: UUID(),
+                type: .announcement,
+                title: "Important Announcement",
+                body: "A community with a very long name",
+                read: false
+            ),
+            communityChipText: "The Extraordinarily Long Named Neighborhood Association of Greater Riverside Heights",
+            onTap: {}
+        )
     }
     .padding()
 }
-
-
-

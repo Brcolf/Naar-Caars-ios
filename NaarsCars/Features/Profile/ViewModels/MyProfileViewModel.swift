@@ -19,6 +19,7 @@ final class MyProfileViewModel: ObservableObject {
     @Published var reviews: [Review] = []
     @Published var averageRating: Double?
     @Published var fulfilledCount: Int = 0
+    @Published var reviewCount: Int = 0
     @Published var totalSavings: Double = 0
     @Published var totalXP: Int = 0
     @Published var isLoading: Bool = false
@@ -29,13 +30,20 @@ final class MyProfileViewModel: ObservableObject {
     
     private let profileService: any ProfileServiceProtocol
     private let authService: any AuthServiceProtocol
+    /// nil reads `CommunityContext.shared` when needed (it is main-actor isolated).
+    private let communityContext: CommunityContext?
+    private let communityAdminService: any CommunityAdminServiceProtocol
 
     init(
         profileService: any ProfileServiceProtocol = ProfileService.shared,
-        authService: any AuthServiceProtocol = AuthService.shared
+        authService: any AuthServiceProtocol = AuthService.shared,
+        communityContext: CommunityContext? = nil,
+        communityAdminService: any CommunityAdminServiceProtocol = CommunityService.shared
     ) {
         self.profileService = profileService
         self.authService = authService
+        self.communityContext = communityContext
+        self.communityAdminService = communityAdminService
     }
     
     // MARK: - Public Methods
@@ -63,24 +71,23 @@ final class MyProfileViewModel: ObservableObject {
             // Fetch all data concurrently using async let
             async let profileTask = profileService.fetchProfile(userId: userId)
             async let reviewsTask = profileService.fetchReviews(forUserId: userId)
-            async let ratingTask = profileService.calculateAverageRating(userId: userId)
-            async let countTask = profileService.fetchFulfilledCount(userId: userId)
+            async let statsTask = profileService.fetchProfileStats(userId: userId)
             async let savingsTask = profileService.fetchUserTotalSavings(userId: userId)
             async let xpTask = profileService.fetchUserTotalXP(userId: userId)
 
-            let (fetchedProfile, fetchedReviews, fetchedRating, fetchedCount, fetchedSavings, fetchedXP) = try await (
+            let (fetchedProfile, fetchedReviews, stats, fetchedSavings, fetchedXP) = try await (
                 profileTask,
                 reviewsTask,
-                ratingTask,
-                countTask,
+                statsTask,
                 savingsTask,
                 xpTask
             )
 
             profile = fetchedProfile
             reviews = fetchedReviews
-            averageRating = fetchedRating
-            fulfilledCount = fetchedCount
+            averageRating = stats.averageRating
+            fulfilledCount = stats.fulfilledCount
+            reviewCount = stats.reviewCount
             totalSavings = fetchedSavings
             totalXP = fetchedXP
 
@@ -119,6 +126,44 @@ final class MyProfileViewModel: ObservableObject {
         )
     }
     
+    /// Names of the communities deleting this account closes (decision A3): the ones this user
+    /// owns alone with no unbanned co-owner or admin to take over. Shown before the final confirmation; the server
+    /// applies A3 whatever the client shows, so a failure here never blocks deletion.
+    func communitiesClosedByDeletion() async -> [String] {
+        guard let userId = authService.currentUserId else { return [] }
+        let memberships = (communityContext ?? CommunityContext.shared).memberships
+        let service = communityAdminService
+        let profiles = profileService
+        let closed = await AccountDeletionCommunityCheck.communitiesClosed(
+            byDeleting: userId,
+            memberships: memberships,
+            fetchActiveMembers: { communityId in
+                try await service.fetchCommunityMembers(
+                    communityId: communityId,
+                    status: .active,
+                    limit: Constants.Community.membersPageSize,
+                    offset: 0
+                )
+            },
+            fetchUnbannedMemberIds: { communityId, candidates in
+                // search_community_members leaves out banned accounts (and accounts blocked either way,
+                // which only makes the warning show where it need not). One found candidate is enough.
+                for candidate in candidates {
+                    let found = try await profiles.searchCommunityMembers(
+                        query: candidate.name,
+                        communityId: communityId,
+                        limit: Constants.Community.successorSearchLimit
+                    )
+                    if found.contains(where: { $0.id == candidate.id }) {
+                        return [candidate.id]
+                    }
+                }
+                return []
+            }
+        )
+        return closed.map(\.name)
+    }
+
     /// Delete the current user's account (App Store requirement — keep reachable).
     /// - Returns: `false` when there is no signed-in user (nothing was attempted), `true` on success
     /// - Throws: Error from the deletion (caller shows the failure alert)

@@ -1,0 +1,12 @@
+{
+  "aps": {
+    "alert": {
+      "title": "You're approved",
+      "body": "Fixture: user_approved for a further community while signed in"
+    },
+    "sound": "default"
+  },
+  "type": "user_approved",
+  "action": "enter_app",
+  "community_id": "<COMMUNITY_ID>"
+}

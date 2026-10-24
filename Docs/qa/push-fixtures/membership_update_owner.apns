@@ -1,0 +1,12 @@
+{
+  "aps": {
+    "alert": {
+      "title": "You're an owner",
+      "body": "Fixture: membership_update owner with community_id"
+    },
+    "sound": "default"
+  },
+  "type": "membership_update",
+  "membership_event": "owner",
+  "community_id": "<COMMUNITY_ID>"
+}

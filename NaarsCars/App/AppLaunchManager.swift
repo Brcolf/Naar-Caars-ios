@@ -46,6 +46,26 @@ enum LaunchState: Equatable {
     }
 }
 
+/// The three profile flags that decide the launch route.
+struct AccountStatusFlags: Equatable, Sendable {
+    let isBanned: Bool
+    let approved: Bool
+    let applicationComplete: Bool
+}
+
+/// Decodes the account-status read of `fetchAccountStatusFlags(userId:)`.
+private struct AccountStatusRow: Decodable {
+    let isBanned: Bool
+    let approved: Bool
+    let applicationComplete: Bool
+
+    enum CodingKeys: String, CodingKey {
+        case isBanned = "is_banned"
+        case approved
+        case applicationComplete = "application_complete"
+    }
+}
+
 /// Manages critical-path app launch to complete in <1 second
 /// Performs minimal checks (auth session + approval) before showing UI
 /// Defers non-critical loading (profile, rides, etc.) to background
@@ -67,6 +87,25 @@ final class AppLaunchManager: ObservableObject {
     private var cancellables = Set<AnyCancellable>()
     private var signOutObserver: NSObjectProtocol?
     private var deferredSyncStartedForUserId: UUID?
+
+    /// The member's communities. Restored before the sync engines start (so the launch
+    /// Town Hall sync reads the stored community) and refreshed after them. Injectable for tests.
+    var communityContext: CommunityContext = .shared
+
+    /// Starts the sync engines for a user. Nil uses `startDeferredSyncEnginesIfNeeded(for:)`;
+    /// tests inject a closure to observe the launch order without starting real engines.
+    var startSyncEngines: ((UUID) -> Void)?
+
+    /// The latest membership load, started by `beginDeferredSession(userId:)` or
+    /// `handleEnterAppIntent()`. Launch routing and hydration never wait for it.
+    private(set) var membershipLoadTask: Task<Void, Never>?
+
+    /// Reads the account flags for the foreground re-check. Nil uses
+    /// `fetchAccountStatusFlags(userId:)`; tests inject a stub. Errors must propagate.
+    var fetchAccountStatus: ((UUID) async throws -> AccountStatusFlags)?
+
+    /// The signed-in user's id for the foreground re-check. Nil reads `supabase.auth.session`.
+    var sessionUserId: (() async throws -> UUID)?
     
     private init() {
         AppLogger.info("launch", "Initializing - setting up notification listener")
@@ -189,20 +228,78 @@ final class AppLaunchManager: ObservableObject {
         }
     }
     
-    /// Lightweight ban re-check for use on app foreground.
-    /// If user is now banned, transitions state to .banned.
-    func recheckBanStatus() async {
+    /// Re-reads the account flags on app foreground (and after a membership load that returned no
+    /// active membership) and leaves the main UI when the profile no longer says "approved":
+    /// `.banned`, `.needsApplication` or `.pendingApproval`, set directly without a `.checkingAuth`
+    /// hop, as the ban path always did. Acts only on a successful read: any error (offline, no
+    /// session, a decoding failure) is logged and changes nothing, so an offline foreground never
+    /// ejects a member. Does nothing unless the state is `.ready(.authenticated)`, and nothing when
+    /// the state changed while the read was in flight.
+    func recheckAccountStatus() async {
         guard case .ready(.authenticated) = state else { return }
+
+        let newState: AuthState
         do {
-            let session = try await supabase.auth.session
-            guard let userId = UUID(uuidString: session.user.id.uuidString) else { return }
-            let status = await checkAccountStatus(userId: userId)
-            if status == .banned {
-                state = .ready(.banned)
-            }
+            newState = try await readAccountRoute()
         } catch {
-            AppLogger.warning("launch", "Ban re-check failed: \(error.localizedDescription)")
+            AppLogger.warning("launch", "Account status re-check failed; keeping the current state: \(error.localizedDescription)")
+            return
         }
+
+        guard newState != .authenticated else { return }
+        guard case .ready(.authenticated) = state else { return }
+        AppLogger.info("launch", "Account status re-check moved the session to \(newState)")
+        state = .ready(newState)
+    }
+
+    /// Reads the session's user id and the three profile flags and maps them with
+    /// `authState(for:)`. Throws on any failure (no session, offline, a decoding error) and never
+    /// changes `state`; callers decide what a route means. Used by `recheckAccountStatus()` and the
+    /// waiting screen, which must not relaunch while the route still reads `.pendingApproval`.
+    func readAccountRoute() async throws -> AuthState {
+        let userId: UUID
+        if let sessionUserId {
+            userId = try await sessionUserId()
+        } else {
+            userId = try await supabase.auth.session.user.id
+        }
+        let flags: AccountStatusFlags
+        if let fetchAccountStatus {
+            flags = try await fetchAccountStatus(userId)
+        } else {
+            flags = try await fetchAccountStatusFlags(userId: userId)
+        }
+        return Self.authState(for: flags)
+    }
+
+    /// Maps the three profile flags to an `AuthState`. Repeats the mapping in
+    /// `checkAccountStatus(userId:)`, which is deliberately left unchanged; consolidating the two is
+    /// a separate refactor.
+    nonisolated static func authState(for flags: AccountStatusFlags) -> AuthState {
+        if flags.isBanned {
+            return .banned
+        } else if flags.approved {
+            return .authenticated
+        } else if !flags.applicationComplete {
+            return .needsApplication
+        } else {
+            return .pendingApproval
+        }
+    }
+
+    /// Answers an `.enterApp` deep link (the `user_approved` push). A session that is already
+    /// `.ready(.authenticated)` (a member approved into a further community, D22) is not relaunched:
+    /// the memberships are refreshed off the main path and the dashboard intent is set through
+    /// `NavigationCoordinator`. In every other state (the waiting screen) it runs
+    /// `performCriticalLaunch()` as before.
+    func handleEnterAppIntent() async {
+        guard case .ready(.authenticated) = state else {
+            await performCriticalLaunch()
+            return
+        }
+        let context = communityContext
+        membershipLoadTask = Task { await context.refreshMemberships() }
+        NavigationCoordinator.shared.applyPushDeepLink(.enterApp)
     }
 
     /// Enter guest browsing mode without creating a Supabase session.
@@ -278,6 +375,23 @@ final class AppLaunchManager: ObservableObject {
         }
     }
     
+    /// The throwing read behind `recheckAccountStatus()`: the same query as
+    /// `checkAccountStatus(userId:)`, but errors propagate instead of answering `.needsApplication`.
+    private func fetchAccountStatusFlags(userId: UUID) async throws -> AccountStatusFlags {
+        let row: AccountStatusRow = try await supabase
+            .from("profiles")
+            .select("is_banned, approved, application_complete")
+            .eq("id", value: userId.uuidString)
+            .single()
+            .execute()
+            .value
+        return AccountStatusFlags(
+            isBanned: row.isBanned,
+            approved: row.approved,
+            applicationComplete: row.applicationComplete
+        )
+    }
+
     /// Perform deferred loading of non-critical data in background
     /// - Parameter userId: Authenticated user ID
     private func performDeferredLoading(userId: UUID) async {
@@ -288,11 +402,7 @@ final class AppLaunchManager: ObservableObject {
         // doesn't set it on AuthService — sync engines check
         // authService.currentUserId for user-specific subscriptions and data
         // fetches, so it must be populated first.
-        if authService.currentUserId == nil {
-            authService.currentUserId = userId
-        }
-
-        startDeferredSyncEnginesIfNeeded(for: userId)
+        beginDeferredSession(userId: userId)
 
         // Refresh blocked users cache for content filtering
         await MessageService.shared.refreshBlockedUsers()
@@ -307,6 +417,35 @@ final class AppLaunchManager: ObservableObject {
             duration: Date().timeIntervalSince(start),
             metadata: ["userId": userId.uuidString]
         )
+    }
+
+    /// Starts the deferred session in the order the launch sync depends on (spec §3.7):
+    /// 1. set `authService.currentUserId` when it is nil;
+    /// 2. restore the stored community synchronously (no network), so the engines read it;
+    /// 3. start the sync engines;
+    /// 4. load the memberships off the launch path. Nothing here waits for that load, and a
+    ///    failed load keeps the restored values (nil means "no community filter"). A successful
+    ///    load with no active membership runs `recheckAccountStatus()`.
+    func beginDeferredSession(userId: UUID) {
+        if authService.currentUserId == nil {
+            authService.currentUserId = userId
+        }
+
+        communityContext.restore(for: userId)
+
+        if let startSyncEngines {
+            startSyncEngines(userId)
+        } else {
+            startDeferredSyncEnginesIfNeeded(for: userId)
+        }
+
+        // A load that returns no active membership re-checks the account (spec §3.7).
+        communityContext.onActiveMembershipsEmpty = { [weak self] in
+            await self?.recheckAccountStatus()
+        }
+
+        let context = communityContext
+        membershipLoadTask = Task { await context.refreshMemberships() }
     }
 
     /// Domains hydrated at launch. Mirrors the three sync engines that used to

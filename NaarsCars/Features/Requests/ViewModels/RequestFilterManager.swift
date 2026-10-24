@@ -9,6 +9,32 @@ import Foundation
 import SwiftData
 import Observation
 
+/// Open requests per community: what the Open filter lists under All communities.
+/// Rows with no community count only in `all`.
+struct OpenRequestCounts: Equatable {
+    let all: Int
+    let byCommunity: [UUID: Int]
+
+    static let zero = OpenRequestCounts(all: 0, byCommunity: [:])
+}
+
+extension OpenRequestCounts {
+    /// Counts already filtered Open rows (the Open filter's list under `.all`).
+    init(openRequests: [RequestItem]) {
+        var byCommunity: [UUID: Int] = [:]
+        for request in openRequests {
+            let communityId: UUID?
+            switch request {
+            case .ride(let ride): communityId = ride.communityId
+            case .favor(let favor): communityId = favor.communityId
+            }
+            guard let communityId else { continue }
+            byCommunity[communityId, default: 0] += 1
+        }
+        self.init(all: openRequests.count, byCommunity: byCommunity)
+    }
+}
+
 /// Extracted filtering/badge helper logic for requests dashboard.
 @MainActor
 @Observable
@@ -60,8 +86,10 @@ final class RequestFilterManager {
                 hiddenAt: sdRide.hiddenAt,
                 hiddenBy: sdRide.hiddenBy,
                 hiddenReason: sdRide.hiddenReason,
+                communityId: sdRide.communityId,
                 createdAt: sdRide.createdAt,
                 updatedAt: sdRide.updatedAt,
+                isExample: sdRide.isExample,
                 poster: poster,
                 claimer: claimer,
                 qaCount: sdRide.qaCount
@@ -93,8 +121,10 @@ final class RequestFilterManager {
                 hiddenAt: sdFavor.hiddenAt,
                 hiddenBy: sdFavor.hiddenBy,
                 hiddenReason: sdFavor.hiddenReason,
+                communityId: sdFavor.communityId,
                 createdAt: sdFavor.createdAt,
                 updatedAt: sdFavor.updatedAt,
+                isExample: sdFavor.isExample,
                 poster: poster,
                 claimer: claimer,
                 qaCount: sdFavor.qaCount
@@ -128,6 +158,10 @@ final class RequestFilterManager {
         let now = Date()
         allRequests = allRequests.filter { request in
             if request.isCompleted { return false }
+            // Example requests (spec 4.11) are never claimed and the nightly expiry skips them;
+            // the server's daily refresh moves their time forward, and until it runs they stay
+            // listed even when their time has passed.
+            if request.isExample { return true }
             // Measured from the end of the request's window (RequestItem.windowEnd), not from
             // `eventTime`: a favor with no time was hidden from every tile at noon of its day.
             let hoursSinceEvent = now.timeIntervalSince(request.windowEnd) / 3600
@@ -154,7 +188,7 @@ final class RequestFilterManager {
         return allRequests
     }
 
-    func fetchFilteredRides(in context: ModelContext, filter: RequestFilter) -> [SDRide] {
+    func fetchFilteredRides(in context: ModelContext, filter: RequestFilter, scope: RequestsScope = .all) -> [SDRide] {
         let userId = authService.currentUserId
         if userId == nil && filter != .open { return [] }
 
@@ -174,12 +208,14 @@ final class RequestFilterManager {
         let descriptor = FetchDescriptor<SDRide>(predicate: predicate, sortBy: [SortDescriptor(\.date, order: .forward)])
         let fetched = (try? context.fetch(descriptor)) ?? []
         if filter == .mine, let uid = userId {
-            return fetched.filter { $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid }
+            return fetched
+                .filter { $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid }
+                .filter { scope.includes($0.communityId) }
         }
-        return fetched
+        return fetched.filter { scope.includes($0.communityId) }
     }
 
-    func fetchFilteredFavors(in context: ModelContext, filter: RequestFilter) -> [SDFavor] {
+    func fetchFilteredFavors(in context: ModelContext, filter: RequestFilter, scope: RequestsScope = .all) -> [SDFavor] {
         let userId = authService.currentUserId
         if userId == nil && filter != .open { return [] }
 
@@ -199,14 +235,53 @@ final class RequestFilterManager {
         let descriptor = FetchDescriptor<SDFavor>(predicate: predicate, sortBy: [SortDescriptor(\.date, order: .forward)])
         let fetched = (try? context.fetch(descriptor)) ?? []
         if filter == .mine, let uid = userId {
-            return fetched.filter { $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid }
+            return fetched
+                .filter { $0.participantIds.contains(uid) || $0.userId == uid || $0.claimedBy == uid }
+                .filter { scope.includes($0.communityId) }
         }
-        return fetched
+        return fetched.filter { scope.includes($0.communityId) }
+    }
+
+    /// Whether the store holds any ride or favor, whatever the filter or scope. The dashboard's
+    /// skeleton stands for "nothing cached yet"; an empty filter over a filled store already has
+    /// its answer (the empty state). Two COUNT queries, no rows loaded.
+    func hasStoredRequests(in context: ModelContext) -> Bool {
+        ((try? context.fetchCount(FetchDescriptor<SDRide>())) ?? 0) > 0
+            || ((try? context.fetchCount(FetchDescriptor<SDFavor>())) ?? 0) > 0
+    }
+
+    /// Requests the current filter would list under `.all` but `scope` hides: what the "N more" hint counts.
+    /// 0 for `.all`. Rows with no community are shown by every narrow and never count; rows the list hides for
+    /// time (getFilteredRequests) never count.
+    func countOutsideScope(in context: ModelContext, filter: RequestFilter, scope: RequestsScope) -> Int {
+        guard scope != .all else { return 0 }
+        let everything = getFilteredRequests(
+            rides: fetchFilteredRides(in: context, filter: filter, scope: .all),
+            favors: fetchFilteredFavors(in: context, filter: filter, scope: .all),
+            filter: filter
+        ).count
+        let narrowed = getFilteredRequests(
+            rides: fetchFilteredRides(in: context, filter: filter, scope: scope),
+            favors: fetchFilteredFavors(in: context, filter: filter, scope: scope),
+            filter: filter
+        ).count
+        return max(0, everything - narrowed)
+    }
+
+    /// The Open filter's rows under `.all` (the 12-hour rule included), counted in total and per
+    /// community. Local only: two fetches of open rows, no network.
+    func openCounts(in context: ModelContext) -> OpenRequestCounts {
+        OpenRequestCounts(openRequests: getFilteredRequests(
+            rides: fetchFilteredRides(in: context, filter: .open, scope: .all),
+            favors: fetchFilteredFavors(in: context, filter: .open, scope: .all),
+            filter: .open
+        ))
     }
 
     func computeFilterBadgeCounts(
         in context: ModelContext,
-        requestNotificationSummaries: [String: RequestNotificationSummary]
+        requestNotificationSummaries: [String: RequestNotificationSummary],
+        scope: RequestsScope = .all
     ) -> [RequestFilter: Int] {
         // Single fetch of ALL rides and favors (2 queries instead of 6)
         let allRides = (try? context.fetch(FetchDescriptor<SDRide>())) ?? []
@@ -214,8 +289,8 @@ final class RequestFilterManager {
 
         var counts: [RequestFilter: Int] = [:]
         for filterCase in RequestFilter.allCases {
-            let filteredRides = filterRidesInMemory(allRides, for: filterCase)
-            let filteredFavors = filterFavorsInMemory(allFavors, for: filterCase)
+            let filteredRides = filterRidesInMemory(allRides, for: filterCase, scope: scope)
+            let filteredFavors = filterFavorsInMemory(allFavors, for: filterCase, scope: scope)
             let requests = getFilteredRequests(rides: filteredRides, favors: filteredFavors, filter: filterCase)
             let unreadTotal = requests.reduce(0) { total, request in
                 total + (requestNotificationSummaries[request.notificationKey]?.unreadCount ?? 0)
@@ -239,7 +314,11 @@ final class RequestFilterManager {
     }
 
     /// In-memory equivalent of the predicate + post-fetch filter in `fetchFilteredRides`.
-    private func filterRidesInMemory(_ rides: [SDRide], for filter: RequestFilter) -> [SDRide] {
+    private func filterRidesInMemory(_ rides: [SDRide], for filter: RequestFilter, scope: RequestsScope) -> [SDRide] {
+        filterRidesByStatus(rides, for: filter).filter { scope.includes($0.communityId) }
+    }
+
+    private func filterRidesByStatus(_ rides: [SDRide], for filter: RequestFilter) -> [SDRide] {
         let userId = authService.currentUserId
         if userId == nil && filter != .open { return [] }
         switch filter {
@@ -261,7 +340,11 @@ final class RequestFilterManager {
     }
 
     /// In-memory equivalent of the predicate + post-fetch filter in `fetchFilteredFavors`.
-    private func filterFavorsInMemory(_ favors: [SDFavor], for filter: RequestFilter) -> [SDFavor] {
+    private func filterFavorsInMemory(_ favors: [SDFavor], for filter: RequestFilter, scope: RequestsScope) -> [SDFavor] {
+        filterFavorsByStatus(favors, for: filter).filter { scope.includes($0.communityId) }
+    }
+
+    private func filterFavorsByStatus(_ favors: [SDFavor], for filter: RequestFilter) -> [SDFavor] {
         let userId = authService.currentUserId
         if userId == nil && filter != .open { return [] }
         switch filter {

@@ -22,17 +22,20 @@ final class ReportContentViewModel: ObservableObject {
     private let authService: any AuthServiceProtocol
     /// Finds the Town Hall post that was generated for a review, if any.
     private let reviewPostLookup: (UUID) async -> UUID?
+    private let communityService: any CommunityServiceProtocol
 
     init(
         messageService: any MessageServiceProtocol = MessageService.shared,
         authService: any AuthServiceProtocol = AuthService.shared,
         reviewPostLookup: @escaping (UUID) async -> UUID? = { reviewId in
             try? await TownHallService.shared.fetchPostIdForReview(reviewId: reviewId)
-        }
+        },
+        communityService: any CommunityServiceProtocol = CommunityService.shared
     ) {
         self.messageService = messageService
         self.authService = authService
         self.reviewPostLookup = reviewPostLookup
+        self.communityService = communityService
     }
 
     /// The author of the reported content when the sheet should offer to block them: someone
@@ -44,6 +47,8 @@ final class ReportContentViewModel: ObservableObject {
         case .post(_, let id, _), .comment(_, let id, _), .ride(_, let id, _), .favor(_, let id, _), .review(_, let id, _):
             authorId = id
         case .user:
+            return nil
+        case .community:
             return nil
         }
         guard authorId != authService.currentUserId else { return nil }
@@ -78,6 +83,12 @@ final class ReportContentViewModel: ObservableObject {
     /// Submit a report. Returns true on success; on failure `submitError` is set and false is returned.
     /// `isSubmitting` stays true after success because the sheet is dismissed by the caller.
     func submitReport(context: ReportContext, type: MessageService.ReportType, description: String) async -> Bool {
+        // A community report is filed by `report_community`, which reads `auth.uid()` itself, so it
+        // does not need the cached user id (nil after a cold launch into onboarding). Every other
+        // case keeps the guard below.
+        if case .community(let id, let code, _) = context {
+            return await submitCommunityReport(communityId: id, code: code, type: type, description: description)
+        }
         guard let currentUserId = authService.currentUserId else { return false }
         isSubmitting = true
 
@@ -145,10 +156,43 @@ final class ReportContentViewModel: ObservableObject {
                         description: details
                     )
                 }
+            case .community:
+                // Handled above, before the user-id guard.
+                return false
             }
             return true
         } catch {
             submitError = error.localizedDescription
+            isSubmitting = false
+            return false
+        }
+    }
+
+    /// Files a report about a community, by id (one the caller can see) or by invite code. A repeat
+    /// of a pending report counts as success. The server's English refusal text is logged, never shown.
+    private func submitCommunityReport(
+        communityId: UUID?,
+        code: String?,
+        type: MessageService.ReportType,
+        description: String
+    ) async -> Bool {
+        isSubmitting = true
+        do {
+            _ = try await communityService.reportCommunity(
+                communityId: communityId,
+                code: code,
+                type: type,
+                description: description.isEmpty ? nil : description
+            )
+            return true
+        } catch let error as CommunityRPCError {
+            AppLogger.warning("community", "report_community refused: \(error.code?.rawValue ?? "none") \(error.serverMessage)")
+            submitError = error.localizedMessage
+            isSubmitting = false
+            return false
+        } catch {
+            AppLogger.error("community", "report_community failed: \(error.localizedDescription)")
+            submitError = "community_error_generic".localized
             isSubmitting = false
             return false
         }

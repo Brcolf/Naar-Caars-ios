@@ -43,7 +43,7 @@
 	<key>NSFaceIDUsageDescription</key>
 	<string>Naar's Cars uses Face ID to unlock the app when you turn on Face ID in the app's settings.</string>
 	<key>NSLocationWhenInUseUsageDescription</key>
-	<string>Naar's Cars uses your location to show where you are on the request map, to start directions from where you are, and to share your location in a message when you choose to.</string>
+	<string>Naar's Cars uses your location to show where you are on the request map, to start directions from where you are, to share your location in a message when you choose to, and to find communities near you when you tap Use my location in Explore. Your location is not stored.</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Naar's Cars uses your microphone to record audio messages in conversations.</string>
 	<key>NSPhotoLibraryAddUsageDescription</key>

@@ -1,0 +1,54 @@
+-- 20261019_0062_geocoding_cache_direct_access_revoked.sql
+--
+-- APPLIED 2026-10-20, both blocks, through the Supabase MCP apply_migration, one call per block (migration-history
+-- versions 20261020164134 20261019_0062_block_1, 20261020164213 20261019_0062_block_2). Both gate conditions were
+-- confirmed by the owner on 2026-10-20 from App Store Connect: no pre-community build remains in use (A5 point 2),
+-- and every build in use contains the Phase 5a client (D-S9). Before the apply: anon and authenticated held every
+-- table privilege (P2), 9 rows, 0 placemarks, the three policies present, get_geocoding_multiplier
+-- 438807f01da2c4e5606bd01c0758763a and put_geocoding_multiplier cfdad42429b7447a3f7ff00826c04091 (20261019_0050's
+-- deployed values). After: no table privilege for anon or authenticated (information_schema lists none), 0
+-- placemarks (block 2 changed no row), the policies and the two definer functions unchanged. No deviation.
+--   Outcomes, 2026-10-20. Dry run: the committed script sent verbatim as one execute_sql call answered
+--   'DRYRUN 20261019_0062_geocoding_cache_direct_access_revoked.sql OK' (geocoding_revoked, geocoding_lookup, short
+--   OK); right after, the grants were still in place and no probe row was left. Apply: short after block 1
+--   (rolled back): OK; after block 2, one rolled-back call with short, geocoding_revoked and geocoding_lookup: all
+--   OK (these short calls carried the PARAMETERS and the helpers the probes call). Not-applied check afterwards:
+--   geocoding_cache_readable false, as expected.
+--
+-- (Before the gate.) GATED: apply only after the owner confirms from App Store Connect that no pre-community build
+-- remains in use (A5 point 2) AND that every build in use contains the Phase 5a client (its ride-cost lookup
+-- calls get_geocoding_multiplier / put_geocoding_multiplier, 20261019_0050). Phase 5b (§4 "Phase 5":
+-- geocoding_cache read through a definer lookup, direct SELECT revoked; D16).
+--
+-- What it does. Block 1 revokes every table privilege on public.geocoding_cache from anon and authenticated (SELECT,
+-- and also INSERT / UPDATE / DELETE / TRUNCATE / REFERENCES / TRIGGER: the 5a client writes through
+-- put_geocoding_multiplier, and an upsert without SELECT fails anyway; D-S6). The three policies stay and are
+-- inert without the grants (removing them is a DROP POLICY, SQL-editor work for a later cleanup). The two
+-- definer functions keep working (they run as the table owner). Block 2 clears the placemark data that builds
+-- without the 5a client wrote after 20261019_0050 block 3 (they upsert it directly until block 1 closes the table).
+--
+-- What old clients see. A build without the 5a client (the installed build, Phase 1-4 builds): its
+-- availability probe (select id limit 1) fails with 42501. It does not treat 42501 as a missing table
+-- (main:NaarsCars/Core/Utilities/GeocodingCacheService.swift:173-198, :200-207 match only 42P01 or a
+-- "does not exist" message), so it never turns caching off: every ride end that reaches the lookup sends one
+-- failing probe before the read and another before the write, then reverse-geocodes on the device (2 s timeout
+-- per end, the same multiplier rules); the estimate is still computed and saved. Nothing else changes for it.
+--
+-- Apply. Supabase MCP apply_migration, one call per block. Verification: dry run (now) through
+-- supabase/dryruns/20261019_0062_geocoding_cache_direct_access_revoked.dryrun.sql (geocoding_revoked,
+-- geocoding_lookup and short as savepoints), then the not-applied check; at the gate, the three probes after
+-- the calls. Block 2 cannot be undone (the multipliers are untouched).
+-- Outcomes, 2026-10-19. The script passed the plan's structural check (no commit;, one begin; and one rollback;,
+-- three savepoint pairs, the helpers before begin;) and was sent verbatim as one execute_sql call: it answered
+-- 'DRYRUN 20261019_0062_geocoding_cache_direct_access_revoked.sql OK' (geocoding_revoked, geocoding_lookup and short
+-- all OK inside it). The not-applied check right after answered all_unchanged = true; geocoding_cache still grants
+-- every privilege to anon and authenticated, holds 7 rows and no placemark (20261019_0050 block 3 had cleared them
+-- earlier the same day, so block 2 had nothing to clear). No probe row was left behind.
+-- Rollback. grant select, insert, update, delete, truncate, references, trigger on table public.geocoding_cache
+-- to anon, authenticated; (the grants read in the plan's P2).
+
+-- BLOCK 1
+revoke all privileges on table public.geocoding_cache from anon, authenticated;
+
+-- BLOCK 2: placemarks written by builds without the 5a client since 20261019_0050 block 3
+update public.geocoding_cache set placemark_data = null where placemark_data is not null;

@@ -28,21 +28,21 @@ struct ReviewCard: View {
                 if let reviewerAvatarUrl = reviewerAvatarUrl {
                     AvatarView(
                         imageUrl: reviewerAvatarUrl,
-                        name: reviewerName ?? "common_anonymous".localized,
+                        name: reviewerName ?? "community_former_member".localized,
                         size: 40,
                         userId: reviewerId
                     )
                 } else {
                     AvatarView(
                         imageUrl: nil,
-                        name: reviewerName ?? "common_anonymous".localized,
+                        name: reviewerName ?? "community_former_member".localized,
                         size: 40,
                         userId: reviewerId
                     )
                 }
                 
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(reviewerName ?? "common_anonymous".localized)
+                    Text(reviewerName ?? "community_former_member".localized)
                         .font(.naarsSubheadline)
                         .fontWeight(.semibold)
                     
@@ -163,7 +163,16 @@ struct ReviewReportButton: View {
     .padding()
 }
 
-
-
-
-
+#Preview("Former member reviewer") {
+    ReviewCard(
+        review: Review(
+            reviewerId: UUID(),
+            fulfillerId: UUID(),
+            rating: 4,
+            comment: "Reviewer is no longer visible."
+        ),
+        reviewerName: nil,
+        reviewerAvatarUrl: nil
+    )
+    .padding()
+}

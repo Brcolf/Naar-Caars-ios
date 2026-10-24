@@ -55,9 +55,36 @@ final class ClaimViewModelTests: XCTestCase {
             XCTAssertTrue(true, "Claim attempted (expected behavior)")
         }
     }
+
+    func testClaim_ExampleIsRefusedWithoutCallingTheService() async {
+        let service = RecordingClaimService()
+        let viewModel = ClaimViewModel(claimService: service)
+
+        do {
+            try await viewModel.claim(requestType: "ride", requestId: UUID(), isExample: true)
+            XCTFail("An example claim must throw")
+        } catch AppError.invalidInput(let message) {
+            XCTAssertEqual(message, "This is an example request. Real requests in your community work the same way.")
+        } catch {
+            XCTFail("Unexpected error: \(error)")
+        }
+
+        XCTAssertEqual(service.claimCalls, 0)
+        XCTAssertEqual(viewModel.error, "This is an example request. Real requests in your community work the same way.")
+        XCTAssertFalse(viewModel.isLoading)
+        XCTAssertFalse(viewModel.showPhoneRequired)
+    }
 }
 
+/// Counts claim calls; every call is a test failure for the example path.
+private final class RecordingClaimService: ClaimServiceProtocol {
+    private(set) var claimCalls = 0
 
+    func claimRequest(requestType: String, requestId: UUID, claimerId: UUID) async throws {
+        claimCalls += 1
+    }
 
+    func unclaimRequest(requestType: String, requestId: UUID, claimerId: UUID) async throws {}
 
-
+    func completeRequest(requestType: String, requestId: UUID, posterId: UUID) async throws {}
+}

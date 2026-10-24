@@ -12,6 +12,7 @@ struct CreateFavorView: View {
     @StateObject private var viewModel = CreateFavorViewModel()
     @Environment(\.dismiss) private var dismiss
     @Environment(AppState.self) private var appState
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     var onFavorCreated: ((UUID) -> Void)? = nil
     @State private var showAddParticipants = false
     @State private var showSuccess = false
@@ -21,6 +22,7 @@ struct CreateFavorView: View {
     @State private var locationServiceReady = false
     @State private var showDiscardConfirmation = false
     @State private var showPastTimeConfirmation = false
+    @State private var showDestinationConfirmation = false
 
     var body: some View {
         NavigationStack {
@@ -65,6 +67,17 @@ struct CreateFavorView: View {
                         .listRowBackground(Color.clear)
                     }
                 } else {
+
+                if viewModel.requiresCommunityChoice {
+                    Section("community_post_to_section".localized) {
+                        Picker("community_post_to_picker".localized, selection: $viewModel.selectedCommunityId) {
+                            ForEach(viewModel.communityOptions) { membership in
+                                Text(membership.name).tag(Optional(membership.communityId))
+                            }
+                        }
+                        .accessibilityIdentifier("createFavor.community")
+                    }
+                }
 
                 Section("favor_create_section_title_description".localized) {
                     TextField("favor_create_title_placeholder".localized, text: $viewModel.title)
@@ -139,7 +152,7 @@ struct CreateFavorView: View {
                         )
                     }
 
-                    TimeZonePicker(selectedTimezone: $viewModel.timezone)
+                    TimeZonePicker(selectedTimezone: Binding(get: { viewModel.timezone }, set: { viewModel.chooseTimezone($0) }))
                 }
                 
                 Section("favor_create_section_details".localized) {
@@ -191,11 +204,16 @@ struct CreateFavorView: View {
             }
             .scrollDismissesKeyboard(.interactively)
             .onAppear {
+                viewModel.configureCommunityChoice()
                 // Initialize LocationService off the first frame so title/description section stays responsive.
                 Task { @MainActor in
                     _ = LocationService.shared
                     locationServiceReady = true
                 }
+            }
+            // Memberships can load after the form opens (cold start); refresh "Post to" then too.
+            .onChange(of: viewModel.communityChoiceSignature) { _, _ in
+                viewModel.configureCommunityChoice()
             }
             .navigationTitle("favor_create_title".localized)
             .navigationBarTitleDisplayMode(.inline)
@@ -217,18 +235,22 @@ struct CreateFavorView: View {
 
                 if !appState.isGuest {
                 ToolbarItem(placement: .confirmationAction) {
-                    Button("favor_create_post".localized) {
+                    Button(postButtonVisibleTitle) {
                         // A time earlier today is usually a slip (AM left in place of PM), but
                         // it can be meant, so ask instead of refusing.
                         if viewModel.isEventTimeInPast {
                             showPastTimeConfirmation = true
+                        } else if showsShortPostTitle {
+                            showDestinationConfirmation = true
                         } else {
                             submitFavor()
                         }
                     }
                     .disabled(viewModel.isLoading || !viewModel.hasRequiredFields)
                     .accessibilityIdentifier("createFavor.post")
-                    .accessibilityLabel("favor_create_post_accessibility".localized)
+                    .accessibilityLabel(postButtonAccessibilityLabel)
+                    // Voice Control answers to the title on screen as well as the spoken label.
+                    .accessibilityInputLabels([postButtonVisibleTitle, postButtonAccessibilityLabel])
                     .accessibilityHint("favor_create_post_hint".localized)
                 }
                 }
@@ -237,6 +259,7 @@ struct CreateFavorView: View {
                 UserSearchView(
                     selectedUserIds: $viewModel.selectedParticipantIds,
                     excludeUserIds: [AuthService.shared.currentUserId].compactMap { $0 },
+                    communityId: viewModel.requiresCommunityChoice ? viewModel.selectedCommunityId : nil,
                     onDismiss: {
                         showAddParticipants = false
                     }
@@ -256,7 +279,19 @@ struct CreateFavorView: View {
                 }
                 Button("request_time_passed_change".localized, role: .cancel) {}
             } message: {
-                Text("request_time_passed_message".localized)
+                // With only "Post" on the bar, this alert is where the community is named.
+                Text(showsShortPostTitle
+                     ? "request_time_passed_message".localized + "\n\n" + viewModel.postButtonTitle
+                     : "request_time_passed_message".localized)
+            }
+            // With only "Post" on the bar, the community is named here before anything is
+            // posted, as "Post to <community>" does on the bar (spec D24: a wrong default must
+            // be visible at the moment of posting).
+            .alert(viewModel.postButtonTitle, isPresented: $showDestinationConfirmation) {
+                Button("favor_create_post".localized) {
+                    submitFavor()
+                }
+                Button("common_cancel".localized, role: .cancel) {}
             }
             .confirmationDialog(
                 "common_discard_changes_title".localized,
@@ -276,6 +311,22 @@ struct CreateFavorView: View {
         // in flight: a swipe mid-request still created the favor, and its id was then consumed
         // by the next, unrelated dismissal of this sheet.
         .interactiveDismissDisabled(viewModel.isLoading || viewModel.hasUnsavedChanges)
+    }
+
+    /// True when the bar shows the short "Post" in place of "Post to <community>". At the
+    /// accessibility text sizes iOS 26 moves a confirmation button that does not fit beside
+    /// Cancel into the "•••" menu, which hides Post. Tapping the short Post names the
+    /// community in an alert before posting (spec D24).
+    private var showsShortPostTitle: Bool {
+        viewModel.requiresCommunityChoice && dynamicTypeSize.isAccessibilitySize
+    }
+
+    private var postButtonVisibleTitle: String {
+        showsShortPostTitle ? "favor_create_post".localized : viewModel.postButtonTitle
+    }
+
+    private var postButtonAccessibilityLabel: String {
+        viewModel.requiresCommunityChoice ? viewModel.postButtonTitle : "favor_create_post_accessibility".localized
     }
 
     private var participantsButtonTitle: String {

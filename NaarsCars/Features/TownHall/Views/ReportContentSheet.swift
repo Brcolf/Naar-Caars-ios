@@ -16,10 +16,26 @@ enum ReportContext {
     case user(id: UUID, name: String)
     /// A review. `authorId` is the reviewer.
     case review(id: UUID, authorId: UUID, preview: String)
+    /// A community: one the caller can see, by `id`, or one they hold a valid invite code for, by `code`.
+    case community(id: UUID?, code: String?, name: String)
+
+    /// Whether the report can reach the owners and admins of a community, and so whether the
+    /// sheet says they may see it. A report about a community (`report_community`) goes to
+    /// platform moderators only; every other kind can carry a community (`handle_new_report`),
+    /// whose admins see it without the reporter, but not always: a person report between people
+    /// who share more than one community, or a report about one of that community's owners or
+    /// admins or their content, goes to platform moderators only. Hence "may see".
+    var reachesCommunityAdmins: Bool {
+        switch self {
+        case .post, .comment, .ride, .favor, .user, .review: return true
+        case .community: return false
+        }
+    }
 }
 
 /// Sheet for reporting user-generated content
 struct ReportContentSheet: View {
+    @ScaledMetric(relativeTo: .body) private var reasonIconWidth: CGFloat = 24
     let context: ReportContext
     var onReported: (() -> Void)?
     /// Called with the author's ID as the sheet closes, when the user blocked them from here.
@@ -51,6 +67,7 @@ struct ReportContentSheet: View {
         case .favor(_, _, let preview): return preview
         case .user(_, let name): return name
         case .review(_, _, let preview): return preview
+        case .community(_, _, let name): return name
         }
     }
 
@@ -62,6 +79,7 @@ struct ReportContentSheet: View {
         case .favor: return "report_content_type_favor".localized
         case .user: return "report_content_type_user".localized
         case .review: return "townhall_badge_review".localized
+        case .community: return "report_content_type_community".localized
         }
     }
 
@@ -96,10 +114,10 @@ struct ReportContentSheet: View {
                         Button {
                             selectedReportType = reportType.type
                         } label: {
-                            HStack {
+                            HStack(spacing: Constants.Spacing.ms) {
                                 Image(systemName: reportType.icon)
                                     .foregroundColor(.naarsPrimary)
-                                    .frame(width: 24)
+                                    .frame(width: reasonIconWidth)
 
                                 Text(reportType.title)
                                     .foregroundColor(.primary)
@@ -123,6 +141,13 @@ struct ReportContentSheet: View {
                         .lineLimit(3...6)
                 } header: {
                     Text("messaging_description".localized)
+                } footer: {
+                    VStack(alignment: .leading, spacing: 4) {
+                        Text("report_reporter_privacy_note".localized)
+                        if context.reachesCommunityAdmins {
+                            Text("report_note_may_be_visible_to_community_admins".localized)
+                        }
+                    }
                 }
 
                 // Block the author (same option as the message report sheet)
@@ -210,3 +235,13 @@ struct ReportContentSheet: View {
         dismiss()
     }
 }
+
+#if DEBUG
+#Preview("Post") {
+    ReportContentSheet(context: .post(id: UUID(), authorId: UUID(), preview: "Anyone have a ladder I could borrow this weekend?"))
+}
+
+#Preview("Community") {
+    ReportContentSheet(context: .community(id: nil, code: "NC7K2PQ9XA", name: "Ballard Neighbors"))
+}
+#endif

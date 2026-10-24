@@ -80,6 +80,35 @@ private struct LeaderboardParams: Encodable, Sendable {
     }
 }
 
+/// Parameters for the community-scoped leaderboard and spotlight RPCs.
+/// Internal so the fixture test can encode it.
+struct CommunityLeaderboardParams: Encodable, Sendable {
+    let p_community_id: String
+    let start_date: String
+    let end_date: String
+
+    private enum CodingKeys: String, CodingKey {
+        case p_community_id
+        case start_date
+        case end_date
+    }
+
+    nonisolated func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(p_community_id, forKey: .p_community_id)
+        try container.encode(start_date, forKey: .start_date)
+        try container.encode(end_date, forKey: .end_date)
+    }
+}
+
+/// The two reads LeaderboardViewModel makes, so its tests can count them without the live backend.
+/// Kept in this file because new Swift files cannot be added to the project in this run; move it to
+/// Core/Protocols when convenient.
+protocol LeaderboardFetching: AnyObject {
+    func fetchLeaderboard(period: LeaderboardPeriod, communityId: UUID?) async throws -> [LeaderboardEntry]
+    func fetchSpotlights(period: LeaderboardPeriod, communityId: UUID?) async throws -> [SpotlightEntry]
+}
+
 /// Service for leaderboard operations
 /// Uses server-side database function for efficient calculation
 final class LeaderboardService {
@@ -99,7 +128,7 @@ final class LeaderboardService {
     /// - Parameter period: Time period filter
     /// - Returns: Array of leaderboard entries sorted by requests fulfilled (descending)
     /// - Throws: AppError if fetch fails
-    func fetchLeaderboard(period: LeaderboardPeriod) async throws -> [LeaderboardEntry] {
+    func fetchLeaderboard(period: LeaderboardPeriod, communityId: UUID? = nil) async throws -> [LeaderboardEntry] {
         let (startDate, endDate) = period.dateRange
         
         // Format dates as YYYY-MM-DD for PostgreSQL
@@ -110,14 +139,18 @@ final class LeaderboardService {
         let startDateString = dateFormatter.string(from: startDate)
         let endDateString = dateFormatter.string(from: endDate)
         
-        let params = LeaderboardParams(start_date: startDateString, end_date: endDateString)
-        
         // Access supabase client
         let client = await SupabaseService.shared.client
         
-        let response = try await client
-            .rpc("get_xp_leaderboard", params: params)
-            .execute()
+        // A nil community means "no filter": the server resolves the primary community.
+        let response: PostgrestResponse<Void>
+        if let communityId {
+            let params = CommunityLeaderboardParams(p_community_id: communityId.uuidString, start_date: startDateString, end_date: endDateString)
+            response = try await client.rpc("get_community_leaderboard", params: params).execute()
+        } else {
+            let params = LeaderboardParams(start_date: startDateString, end_date: endDateString)
+            response = try await client.rpc("get_xp_leaderboard", params: params).execute()
+        }
         
         // Decode entries
         let decoder = JSONDecoder()
@@ -140,23 +173,26 @@ final class LeaderboardService {
     // MARK: - Fetch Spotlights
 
     /// Fetch spotlight winners for the leaderboard
-    func fetchSpotlights(period: LeaderboardPeriod) async throws -> [SpotlightEntry] {
+    func fetchSpotlights(period: LeaderboardPeriod, communityId: UUID? = nil) async throws -> [SpotlightEntry] {
         let (startDate, endDate) = period.dateRange
 
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd"
         dateFormatter.timeZone = TimeZone(secondsFromGMT: 0)
 
-        let params = LeaderboardParams(
-            start_date: dateFormatter.string(from: startDate),
-            end_date: dateFormatter.string(from: endDate)
-        )
+        let startString = dateFormatter.string(from: startDate)
+        let endString = dateFormatter.string(from: endDate)
 
         let client = await SupabaseService.shared.client
 
-        let response = try await client
-            .rpc("get_leaderboard_spotlights", params: params)
-            .execute()
+        let response: PostgrestResponse<Void>
+        if let communityId {
+            let params = CommunityLeaderboardParams(p_community_id: communityId.uuidString, start_date: startString, end_date: endString)
+            response = try await client.rpc("get_community_spotlights", params: params).execute()
+        } else {
+            let params = LeaderboardParams(start_date: startString, end_date: endString)
+            response = try await client.rpc("get_leaderboard_spotlights", params: params).execute()
+        }
 
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
@@ -205,3 +241,4 @@ final class LeaderboardService {
     
 }
 
+extension LeaderboardService: LeaderboardFetching {}

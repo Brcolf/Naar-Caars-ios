@@ -376,100 +376,13 @@ final class ProfileService {
         return reviews
     }
     
-    /// Calculate average rating for a user
-    /// - Parameter userId: The user ID
-    /// - Returns: Average rating (0.0 to 5.0), or nil if no reviews
-    func calculateAverageRating(userId: UUID) async throws -> Double? {
-        let reviews: [ReviewRating] = try await supabase
-            .from("reviews")
-            .select("rating")
-            .eq("fulfiller_id", value: userId.uuidString)
+    /// Rating, review count and fulfilled count for a user, from the `get_profile_stats` RPC.
+    /// The RPC answers `{}` when the viewer may not see the person (decodes as nothing visible).
+    func fetchProfileStats(userId: UUID) async throws -> ProfileStats {
+        let response = try await supabase
+            .rpc("get_profile_stats", params: ["p_user_id": userId.uuidString])
             .execute()
-            .value
-        
-        guard !reviews.isEmpty else {
-            return nil
-        }
-        
-        let sum = reviews.reduce(0.0) { $0 + Double($1.rating) }
-        return sum / Double(reviews.count)
-    }
-    
-    // MARK: - Invite Codes Operations
-    
-    /// Fetch invite codes for a user
-    /// - Parameter userId: The user ID
-    /// - Returns: Array of invite codes ordered by created_at descending
-    /// - Throws: AppError if fetch fails
-    func fetchInviteCodes(forUserId userId: UUID) async throws -> [InviteCode] {
-        let codes: [InviteCode] = try await supabase
-            .from("invite_codes")
-            .select()
-            .eq("created_by", value: userId.uuidString)
-            .order("created_at", ascending: false)
-            .execute()
-            .value
-        
-        return codes
-    }
-    
-    /// Generate a new invite code for a user
-    /// Uses InviteCodeGenerator for secure 8-character codes
-    /// - Parameter userId: The user ID
-    /// - Returns: The newly created invite code
-    /// - Throws: AppError if generation fails
-    func generateInviteCode(userId: UUID) async throws -> InviteCode {
-        // Generate secure 8-character code
-        let code = InviteCodeGenerator.generate()
-        
-        let newCode = InviteCode(
-            id: UUID(),
-            code: code,
-            createdBy: userId,
-            usedBy: nil,
-            usedAt: nil,
-            createdAt: Date()
-        )
-        
-        let insertedCode: InviteCode = try await supabase
-            .from("invite_codes")
-            .insert(newCode)
-            .select()
-            .single()
-            .execute()
-            .value
-        
-        return insertedCode
-    }
-    
-    // MARK: - Stats Operations
-    
-    /// Fetch fulfilled count for a user
-    /// Counts confirmed/completed rides and favors
-    /// - Parameter userId: The user ID
-    /// - Returns: Total count of fulfilled requests
-    func fetchFulfilledCount(userId: UUID) async throws -> Int {
-        // Count confirmed/completed rides
-        let ridesResponse = try await supabase
-            .from(supabase.ridesReadSource)
-            .select("id", head: true, count: .exact)
-            .eq("claimed_by", value: userId.uuidString)
-            .in("status", values: ["confirmed", "completed"])
-            .execute()
-        
-        let ridesCount = ridesResponse.count ?? 0
-        
-        // Count confirmed/completed favors
-        let favorsResponse = try await supabase
-            .from(supabase.favorsReadSource)
-            .select("id", head: true, count: .exact)
-            .eq("claimed_by", value: userId.uuidString)
-            .in("status", values: ["confirmed", "completed"])
-            .execute()
-        
-        let favorsCount = favorsResponse.count ?? 0
-        
-        return ridesCount + favorsCount
+        return try JSONDecoder().decode(ProfileStats.self, from: response.data)
     }
 
     // MARK: - Savings & XP Operations
@@ -542,13 +455,6 @@ final class ProfileService {
         
         AppLogger.database.info("Account deleted: \(userId.uuidString)")
     }
-}
-
-// MARK: - Helper Types
-
-/// Helper struct for decoding review ratings
-private struct ReviewRating: Codable {
-    let rating: Int
 }
 
 extension ProfileService: ProfileServiceProtocol {}

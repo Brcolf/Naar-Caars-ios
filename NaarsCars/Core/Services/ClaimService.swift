@@ -126,10 +126,23 @@ final class ClaimService {
                     "error": error.localizedDescription
                 ]
             )
+            // An example request reached by a path that skipped the chip (an old cached row,
+            // a deep link, a stale detail screen): the plain example message, not a raw error.
+            if Self.isExampleRefusal(error) {
+                throw AppError.invalidInput("request_example_refused".localized)
+            }
             throw error
         }
     }
     
+    /// True when the server refused a claim because the request is example content: the
+    /// `guard_example_content` trigger raises 42501 with the message `example_request`
+    /// (20261021_0020). Matched on the message, since 42501 alone is any permission refusal.
+    static func isExampleRefusal(_ error: Error) -> Bool {
+        guard let postgrestError = error as? PostgrestError else { return false }
+        return postgrestError.message == "example_request"
+    }
+
     // MARK: - Unclaim Request
     
     /// Unclaim a request (reset to open)

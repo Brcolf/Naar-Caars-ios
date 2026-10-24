@@ -63,6 +63,100 @@ final class LeaderboardViewModelTests: XCTestCase {
         // Note: Cache TTL is 15 minutes, so immediate reload should use cache
         XCTAssertEqual(viewModel.entries.count, initialEntries.count, "Should use cached data")
     }
+
+    // MARK: - Request counts (stubbed service)
+
+    /// Lets a stray unstructured Task (the old background refetch) run before the counts are read.
+    private func drainMainActor() async {
+        for _ in 0..<50 { await Task.yield() }
+    }
+
+    /// The view calls loadLeaderboard on every appearance; a fresh cache must not cost a request.
+    func testLoadLeaderboard_CacheHitWithinTTLDoesNotFetchAgain() async {
+        let stub = StubLeaderboardFetcher()
+        let vm = LeaderboardViewModel(leaderboardService: stub)
+
+        await vm.loadLeaderboard()
+        await vm.loadLeaderboard()
+        await drainMainActor()
+
+        XCTAssertEqual(stub.entryCalls.count, 1)
+        XCTAssertEqual(stub.spotlightCalls.count, 1)
+    }
+
+    /// Pull-to-refresh drops the key and fetches even when the cached rows are fresh.
+    func testRefresh_FetchesEvenWithAFreshCache() async {
+        let stub = StubLeaderboardFetcher()
+        let vm = LeaderboardViewModel(leaderboardService: stub)
+
+        await vm.loadLeaderboard()
+        await vm.refresh()
+        await drainMainActor()
+
+        XCTAssertEqual(stub.entryCalls.count, 2)
+        XCTAssertEqual(stub.spotlightCalls.count, 2)
+    }
+
+    /// Each period is its own cache key: fetched once, then served from the cache on a return.
+    func testPeriodChange_FetchesEachPeriodOnceThenUsesCache() async {
+        let stub = StubLeaderboardFetcher()
+        let vm = LeaderboardViewModel(leaderboardService: stub)
+
+        await vm.loadLeaderboard()
+        vm.selectedPeriod = .allTime
+        await vm.loadLeaderboard()
+        vm.selectedPeriod = .thisMonth
+        await vm.loadLeaderboard()
+        await drainMainActor()
+
+        XCTAssertEqual(stub.entryCalls.map(\.period), [.thisMonth, .allTime])
+        XCTAssertEqual(stub.spotlightCalls.map(\.period), [.thisMonth, .allTime])
+    }
+
+    /// The community page pins its leaderboard to the page's community: the Town Hall community
+    /// (the context's tab) does not decide which rows it reads.
+    func testPinnedCommunity_LoadsThatCommunityWhateverTheTab() async {
+        let suiteName = "LeaderboardViewModelTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let communities = StubCommunityService(result: .success([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "Community A", isPrimary: true),
+            CommunityFixtures.membership(CommunityFixtures.communityB, name: "Community B")
+        ]))
+        let context = CommunityContext(service: communities, defaults: defaults, platformAdminProvider: { false })
+        context.restore(for: CommunityFixtures.userA)
+        await context.refreshMemberships()
+        XCTAssertEqual(context.communityTabId, CommunityFixtures.communityA)
+
+        let stub = StubLeaderboardFetcher()
+        let vm = LeaderboardViewModel(leaderboardService: stub, communityContext: context, communityId: CommunityFixtures.communityB)
+
+        await vm.loadLeaderboard()
+        vm.selectedPeriod = .allTime
+        await vm.loadLeaderboard()
+        await vm.refresh()
+        await drainMainActor()
+
+        XCTAssertEqual(stub.entryCalls.last?.communityId, CommunityFixtures.communityB)
+        XCTAssertEqual(Set(stub.entryCalls.map { $0.communityId }), [CommunityFixtures.communityB])
+        XCTAssertEqual(Set(stub.spotlightCalls.map { $0.communityId }), [CommunityFixtures.communityB])
+    }
+}
+
+/// Records each leaderboard and spotlight read and answers with no rows.
+private final class StubLeaderboardFetcher: LeaderboardFetching {
+    private(set) var entryCalls: [(period: LeaderboardPeriod, communityId: UUID?)] = []
+    private(set) var spotlightCalls: [(period: LeaderboardPeriod, communityId: UUID?)] = []
+
+    func fetchLeaderboard(period: LeaderboardPeriod, communityId: UUID?) async throws -> [LeaderboardEntry] {
+        entryCalls.append((period, communityId))
+        return []
+    }
+
+    func fetchSpotlights(period: LeaderboardPeriod, communityId: UUID?) async throws -> [SpotlightEntry] {
+        spotlightCalls.append((period, communityId))
+        return []
+    }
 }
 
 

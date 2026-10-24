@@ -1,0 +1,13 @@
+{
+  "aps": {
+    "alert": {
+      "title": "Content Reported",
+      "body": "Fixture: content_reported without community_id (platform admin)"
+    },
+    "sound": "default"
+  },
+  "type": "content_reported",
+  "report_id": "<REPORT_ID>",
+  "target_type": "town_hall_post",
+  "town_hall_post_id": "<POST_ID>"
+}

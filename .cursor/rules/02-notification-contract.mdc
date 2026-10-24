@@ -24,3 +24,8 @@ Rules:
    - a fixture for at least one example payload per notification type family
    - a decoding test that ensures the client can parse the payload
 
+
+4) Registry size and validation (Phase 4)
+   - The registry holds 34 types; `membership_update` is the newest (payload `membership_event`: `approved`, `owner`).
+   - `scripts/validate-notification-types.sh` checks the Swift enum, `NotificationTypeRegistry`, the TypeScript registry and the SQL `valid_notification_type` CHECK; run it after any change.
+   - The `membership_update` producers and the announcement `broadcast` push are GATED server files; do not apply them while a pre-community build is in use.

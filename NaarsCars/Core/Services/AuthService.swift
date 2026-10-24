@@ -168,58 +168,6 @@ final class AuthService: ObservableObject {
         }
     }
     
-    /// Sign up with email, password, and invite code
-    /// - Parameters:
-    ///   - email: User's email address
-    ///   - password: User's password
-    ///   - inviteCode: Valid invite code
-    /// - Throws: AppError if sign up fails
-    func signUp(email: String, password: String, inviteCode: String) async throws {
-        isLoading = true
-        defer { isLoading = false }
-        
-        do {
-            // Validate invite code first
-            let validatedInviteCode = try await self.validateInviteCode(inviteCode)
-            
-            // Call Supabase auth.signUp()
-            let response = try await supabase.client.auth.signUp(
-                email: email,
-                password: password
-            )
-            
-            guard let userId = UUID(uuidString: response.user.id.uuidString) else {
-                throw AppError.processingError("Invalid user ID")
-            }
-            
-            // Profile creation is handled by database trigger (handle_new_user)
-            // Poll for profile with exponential backoff instead of a fixed delay
-            let profile = try await pollForNewProfile(maxAttempts: 5, initialDelayMs: 100)
-            
-            // Update currentUserId and currentProfile
-            currentUserId = userId
-            currentProfile = profile
-            
-            // Mark invite code as used (or create tracking record for bulk codes)
-            // Use InviteService to handle bulk vs non-bulk codes correctly:
-            // - Non-bulk codes: Mark as used (single-use)
-            // - Bulk codes: Create tracking record (bulk code remains active for other users)
-            try await InviteService.shared.markInviteCodeAsUsed(inviteCode: validatedInviteCode, userId: userId)
-            
-            AppLogger.auth.info("Sign up successful for user: \(email)")
-            // Sync engines started by AppLaunchManager.performDeferredLoading()
-        } catch {
-            // Handle errors with appropriate AppError types
-            let errorMessage = error.localizedDescription.lowercased()
-            
-            if errorMessage.contains("already") && errorMessage.contains("registered") {
-                throw AppError.emailAlreadyExists
-            } else {
-                throw AppError.processingError(error.localizedDescription)
-            }
-        }
-    }
-    
     /// Sign up with email and password (public signup — no invite code required)
     /// - Parameters:
     ///   - email: User's email address
@@ -234,6 +182,8 @@ final class AuthService: ObservableObject {
         // Track whether auth user was created so we can clean up on failure
         var createdAuthUserId: String?
 
+        // Nothing identifying in these sign-up lines (5b gate G5: the address was logged).
+        AppLogger.auth.info("Sign-up started")
         do {
             // 1. Create auth user with Supabase
             let authResponse = try await supabase.client.auth.signUp(
@@ -298,10 +248,10 @@ final class AuthService: ObservableObject {
             // Signup fully succeeded — clear the tracking variable so cleanup doesn't fire
             createdAuthUserId = nil
 
-            AppLogger.auth.info("User signed up successfully: \(email)")
+            AppLogger.auth.info("Sign-up succeeded")
 
         } catch {
-            AppLogger.auth.error("Signup failed for \(email): \(error.localizedDescription)")
+            AppLogger.auth.error("Sign-up failed: \(error.localizedDescription)")
 
             // Clean up orphaned auth user if one was created before the failure
             if let orphanedId = createdAuthUserId {
@@ -411,150 +361,7 @@ final class AuthService: ObservableObject {
         }
     }
     
-    /// Validate invite code
-    /// - Parameter code: Invite code to validate
-    /// - Returns: Validated InviteCode if successful
-    /// - Throws: AppError if validation fails
-    func validateInviteCode(_ code: String) async throws -> InviteCode {
-        // 1. Normalize code (uppercase, trim whitespace)
-        let normalized = InviteCodeGenerator.normalize(code)
-        
-        // 2. Validate format
-        guard InviteCodeGenerator.isValidFormat(normalized) else {
-            // Return same error for invalid format as for not found (prevent enumeration)
-            throw AppError.invalidInviteCode
-        }
-        
-        // 3. Rate limit check: 3 seconds between validation attempts
-        let rateLimitAction = "validate_invite_code"
-        let rateLimitAllowed = await RateLimiter.shared.checkAndRecord(
-            action: rateLimitAction,
-            minimumInterval: Constants.RateLimits.authAction
-        )
-        
-        guard rateLimitAllowed else {
-            throw AppError.rateLimitExceeded("Please wait a moment before trying again.")
-        }
-        
-        // 4. Query invite_codes table for matching code where used_by IS NULL
-        // Important: We want to match the ORIGINAL code, not tracking records
-        // - For non-bulk codes: code matches and used_by IS NULL (single-use)
-        // - For bulk codes: code matches, used_by IS NULL, and bulkCodeId IS NULL (the original bulk code, not a tracking record)
-        // - Tracking records have bulkCodeId set and different code format, so they won't match this query
-        // Note: Tracking records use format "ORIGINALCODE-UUID", so they won't match the original code anyway
-        do {
-            AppLogger.auth.debug("Validating invite code: \(normalized)")
-            let response = try await supabase.client
-                .from("invite_codes")
-                .select()
-                .eq("code", value: normalized)
-                .is("used_by", value: nil)
-                .single()
-                .execute()
-            
-            AppLogger.auth.debug("Found invite code in database")
-            
-            // Log raw JSON for debugging (only in DEBUG mode)
-            #if DEBUG
-            if let jsonString = String(data: response.data, encoding: .utf8) {
-                AppLogger.auth.debug("Raw JSON response: \(jsonString.prefix(500))")
-            }
-            #endif
-            
-            // 5. Decode InviteCode - use custom decoder with date handling for Supabase ISO8601 format
-            let decoder = createInviteCodeDecoder()
-            let inviteCode: InviteCode
-            do {
-                inviteCode = try decoder.decode(InviteCode.self, from: response.data)
-            } catch let decodingError as DecodingError {
-                #if DEBUG
-                AppLogger.auth.error("Decoding error details:")
-                switch decodingError {
-                case .typeMismatch(let type, let context):
-                    AppLogger.auth.error("Type mismatch: Expected \(type), at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
-                case .valueNotFound(let type, let context):
-                    AppLogger.auth.error("Value not found: \(type), at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
-                case .keyNotFound(let key, let context):
-                    AppLogger.auth.error("Key not found: \(key.stringValue), at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
-                case .dataCorrupted(let context):
-                    AppLogger.auth.error("Data corrupted at path: \(context.codingPath.map { $0.stringValue }.joined(separator: "."))")
-                @unknown default:
-                    AppLogger.auth.error("Unknown decoding error: \(decodingError)")
-                }
-                #endif
-                throw decodingError
-            }
-            
-            AppLogger.auth.debug("Decoded invite code: code=\(inviteCode.code), isBulk=\(inviteCode.isBulk)")
-            
-            // 6. Check expiration
-            // Non-bulk codes (expiresAt == nil): Never expire - only check if used (already filtered by used_by IS NULL)
-            // Bulk codes (expiresAt != nil): Check if expired (48 hours from creation)
-            if inviteCode.isExpired {
-                // Code is expired (only bulk codes can expire) - return same error (prevent enumeration)
-                AppLogger.auth.debug("Invite code expired: \(normalized)")
-                throw AppError.invalidInviteCode
-            }
-            
-            // 7. Additional validation: Non-bulk codes should never expire
-            // This is a data consistency check
-            if !inviteCode.isBulk && inviteCode.expiresAt != nil {
-                AppLogger.auth.warning("Non-bulk code has expiresAt set - treating as valid (data inconsistency)")
-            }
-            
-            // 8. Validate that the code is actually active (additional safety check)
-            // isActive checks: !isUsed && !isExpired
-            // We've already filtered by used_by IS NULL, so isUsed should be false
-            // We've already checked expiration above
-            if !inviteCode.isActive {
-                AppLogger.auth.debug("Invite code not active: \(normalized)")
-                throw AppError.invalidInviteCode
-            }
-            
-            // 9. Return valid invite code
-            AppLogger.auth.info("Invite code validated successfully: \(normalized)")
-            return inviteCode
-            
-        } catch {
-            // 10. Return same error for "not found", "already used", "expired", and decode errors (prevent enumeration)
-            // This prevents attackers from discovering which codes exist
-            AppLogger.auth.debug("Invite code validation failed for: \(normalized)")
-            throw AppError.invalidInviteCode
-        }
-    }
-    
     // MARK: - Helper Methods
-    
-    /// Create a JSONDecoder configured for decoding InviteCode from Supabase responses
-    /// Handles ISO8601 date format with fractional seconds
-    func createInviteCodeDecoder() -> JSONDecoder {
-        let decoder = JSONDecoder()
-        
-        decoder.dateDecodingStrategy = .custom { decoder in
-            let container = try decoder.singleValueContainer()
-            let dateString = try container.decode(String.self)
-            
-            let formatterWithFractional = ISO8601DateFormatter()
-            formatterWithFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-            
-            let formatterStandard = ISO8601DateFormatter()
-            formatterStandard.formatOptions = [.withInternetDateTime]
-            
-            // Try with fractional seconds first (Supabase format)
-            if let date = formatterWithFractional.date(from: dateString) {
-                return date
-            }
-            
-            // Fallback to standard ISO8601
-            if let date = formatterStandard.date(from: dateString) {
-                return date
-            }
-            
-            throw DecodingError.dataCorruptedError(in: container, debugDescription: "Invalid date format: \(dateString)")
-        }
-        
-        return decoder
-    }
     
     /// Handle sign out with complete cleanup.
     /// Critical data wipe and teardown happen BEFORE the UI transition notification
@@ -586,6 +393,9 @@ final class AuthService: ObservableObject {
 
         // --- Phase 1: Clear auth state ---
 
+        // Captured before it is cleared so per-account keys can be removed by user id below.
+        // It may already be nil when the session ended first.
+        let signingOutUserId = currentUserId
         currentUserId = nil
         currentProfile = nil
         AppLogger.auth.debug("User ID cleared")
@@ -612,7 +422,7 @@ final class AuthService: ObservableObject {
         // Per-account state kept outside SwiftData. It used to outlive sign-out, so a guest or
         // the next account on this device saw the previous member's recent addresses, pinned
         // threads, delivered notifications and badge counts. Local only; cannot hang.
-        await clearPerAccountLocalState()
+        await clearPerAccountLocalState(userId: signingOutUserId)
 
         // --- Phase 3: Post notification for immediate UI transition ---
         // This MUST fire before the potentially-hanging teardown below.
@@ -649,7 +459,8 @@ final class AuthService: ObservableObject {
     }
     
     /// Local-only part of the sign-out wipe: no network, safe before the UI transition.
-    private func clearPerAccountLocalState() async {
+    /// - Parameter userId: the account signing out, or nil when the session had already ended.
+    private func clearPerAccountLocalState(userId: UUID?) async {
         // Keys owned by ConversationsListView (pinned threads), RecentReactionsStore,
         // CalendarOfferTracker and PushNotificationService (last push payload).
         let defaults = UserDefaults.standard
@@ -668,7 +479,24 @@ final class AuthService: ObservableObject {
         await MainActor.run {
             LocationService.shared.forgetRecentLocations()
             BadgeCountManager.shared.resetForSignOut()
+            // Memberships in memory and the community.* keys of this account (and of the
+            // account CommunityContext restored, when that differs).
+            CommunityContext.shared.resetForSignOut(userId: userId)
+            // A confirmation waiting for the next launch root never crosses accounts.
+            RootNotice.pending = nil
         }
+        // An invite code kept on this device for a sign-up (spec §5 Sign-out row).
+        PendingInviteStore().clear()
+        // The community a guest looked at before signing up, offered on Get started.
+        ViewedCommunityStore().clear()
+        // Signed storage URLs were issued under this account's access; the next account signs its own.
+        await StorageURLSigner.shared.reset()
+        // Both caches below are account-scoped: the photos this account could read (with the
+        // image buckets private, the files on disk are the only copy outside the server), and
+        // REST responses with its content. A guest or the next account on this device was served
+        // from them (5b gate G4). Local file removal only; cannot hang.
+        PersistentImageService.shared.clearCache()   // disk and memory
+        URLCache.shared.removeAllCachedResponses()
     }
 
     /// Poll for profile creation after signup with exponential backoff

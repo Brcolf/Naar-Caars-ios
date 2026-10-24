@@ -29,7 +29,7 @@ final class UserSearchViewModel: ObservableObject {
     }
 
     /// Debounced entry point for the search field's onChange
-    func scheduleSearch(query: String, excludeUserIds: [UUID]) {
+    func scheduleSearch(query: String, excludeUserIds: [UUID], communityId: UUID? = nil) {
         // Cancel previous search task
         searchTask?.cancel()
 
@@ -40,7 +40,7 @@ final class UserSearchViewModel: ObservableObject {
             // Check if task was cancelled
             guard !Task.isCancelled else { return }
 
-            await self?.searchUsers(query: query, excludeUserIds: excludeUserIds)
+            await self?.searchUsers(query: query, excludeUserIds: excludeUserIds, communityId: communityId)
         }
     }
 
@@ -55,7 +55,7 @@ final class UserSearchViewModel: ObservableObject {
         searchTask = nil
     }
 
-    func searchUsers(query: String, excludeUserIds: [UUID]) async {
+    func searchUsers(query: String, excludeUserIds: [UUID], communityId: UUID? = nil) async {
         let trimmedQuery = query.trimmingCharacters(in: .whitespacesAndNewlines)
 
         // Require at least 2 characters to search
@@ -68,8 +68,9 @@ final class UserSearchViewModel: ObservableObject {
         error = nil
 
         do {
-            let profiles = try await profileService.searchPublicProfiles(
+            let profiles = try await profileService.searchCommunityMembers(
                 query: trimmedQuery,
+                communityId: communityId,
                 limit: Constants.PageSizes.userSearch
             )
 

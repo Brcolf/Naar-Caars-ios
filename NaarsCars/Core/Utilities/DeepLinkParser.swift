@@ -13,21 +13,50 @@ enum DeepLink {
     case favor(id: UUID)
     case conversation(id: UUID)
     case profile(id: UUID)
-    case townHallPostComments(id: UUID)
-    case townHallPostHighlight(id: UUID)
+    case townHallPostComments(id: UUID, communityId: UUID? = nil)
+    case townHallPostHighlight(id: UUID, communityId: UUID? = nil)
     case townHall
     case adminPanel
     case pendingUsers
+    /// A community's Requests to join (`pending_approval` carrying `community_id`).
+    case pendingMembers(communityId: UUID)
     case adminReports
+    /// A community's reports (`content_reported` carrying `community_id`: a community owner's or admin's push).
+    case communityReports(communityId: UUID)
+    /// My communities (`account_restricted`: removed from a community; `membership_update`:
+    /// approved into a further community).
+    case myCommunities
+    /// A community's members (`membership_update` with `membership_event` `owner`: made an owner).
+    case communityMembers(communityId: UUID)
     case dashboard
     case notifications
     case announcements(notificationId: UUID?)
     case enterApp  // For approved users to enter the main app
+    /// An invite link (`https://naarscars.com/join#<code>`, multi-community Phase 4). The code is
+    /// normalized and well formed. It is a bearer secret: log through `logDescription`, never `"\(self)"`.
+    case joinCommunity(code: String)
     case unknown
+}
+
+extension DeepLink {
+    /// For logs: `joinCommunity(<code>)` for an invite, `"\(self)"` otherwise. The code never
+    /// reaches a log line.
+    var logDescription: String {
+        if case .joinCommunity = self {
+            return "joinCommunity(<code>)"
+        }
+        return "\(self)"
+    }
 }
 
 /// Parser for deep links from push notifications
 struct DeepLinkParser {
+    /// The community from the push payload (`community_id`), when present and well formed.
+    /// Absent on pushes from before the multi-community backend; the feed then looks the post up.
+    private static func communityId(from userInfo: [AnyHashable: Any]) -> UUID? {
+        (userInfo["community_id"] as? String).flatMap(UUID.init)
+    }
+
     /// Parse deep link from notification userInfo
     /// - Parameter userInfo: Notification payload
     /// - Returns: Parsed DeepLink
@@ -74,10 +103,11 @@ struct DeepLinkParser {
         case "town_hall_post", "town_hall_comment", "town_hall_reaction":
             if let postIdString = userInfo["town_hall_post_id"] as? String,
                let postId = UUID(uuidString: postIdString) {
+                let communityId = communityId(from: userInfo)
                 if type == "town_hall_post" {
-                    return .townHallPostComments(id: postId)
+                    return .townHallPostComments(id: postId, communityId: communityId)
                 }
-                return .townHallPostHighlight(id: postId)
+                return .townHallPostHighlight(id: postId, communityId: communityId)
             }
             return .townHall
 
@@ -92,10 +122,20 @@ struct DeepLinkParser {
             }
             
         // Admin notifications - navigate to admin panel
+        // With a `community_id` it opens that community's Requests to join; without one
+        // (pushes from before the multi-community backend) the platform Pending Users route.
         case "pending_approval":
+            if let communityId = communityId(from: userInfo) {
+                return .pendingMembers(communityId: communityId)
+            }
             return .pendingUsers
 
+        // Two audiences: a community owner's or admin's push carries `community_id` and opens
+        // that community's reports; a platform admin's push has none and keeps the platform list.
         case "content_reported":
+            if let communityId = communityId(from: userInfo) {
+                return .communityReports(communityId: communityId)
+            }
             return .adminReports
 
         case "content_hidden":
@@ -113,7 +153,7 @@ struct DeepLinkParser {
             }
             if let postIdString = userInfo["town_hall_post_id"] as? String,
                let postId = UUID(uuidString: postIdString) {
-                return .townHallPostHighlight(id: postId)
+                return .townHallPostHighlight(id: postId, communityId: communityId(from: userInfo))
             }
             return .dashboard
 
@@ -127,6 +167,22 @@ struct DeepLinkParser {
         // User rejected - no destination (user cannot enter the app)
         case "user_rejected":
             return .notifications
+
+        // Removed from a community: My communities. A session that just lost its last community
+        // is moved to onboarding by the membership refresh every such push triggers.
+        case "account_restricted":
+            return .myCommunities
+
+        // A membership change (multi-community Phase 4). Made an owner (`membership_event` `owner`,
+        // with a well-formed `community_id`): that community's members. Every other case (approved
+        // into a further community, an unknown or missing event, no community): My communities.
+        // Read from the payload only; the members screen checks the role itself.
+        case "membership_update":
+            if userInfo["membership_event"] as? String == "owner",
+               let communityId = communityId(from: userInfo) {
+                return .communityMembers(communityId: communityId)
+            }
+            return .myCommunities
             
         case "dashboard":
             return .dashboard
@@ -148,7 +204,22 @@ struct DeepLinkParser {
     }
 }
 
+// MARK: - Universal Links
 
-
-
-
+extension DeepLinkParser {
+    /// `https://naarscars.com/join#<code>` (spec §4 Phase 4, D15). The code is read from the
+    /// fragment only, which never reaches the web server or a referrer; a code in the query or
+    /// the path is never read. Anything else is `.unknown` and is not routed.
+    static func parse(url: URL) -> DeepLink {
+        guard url.scheme?.lowercased() == "https" else { return .unknown }
+        // The bare domain only: the Associated Domains entitlement names no `www.` host.
+        guard url.host?.lowercased() == Constants.URLs.universalLinkHost else { return .unknown }
+        // `url.path` drops a trailing slash, so `/join/` reads `/join` and `/join/<code>` does not.
+        guard url.path == Constants.URLs.joinPath else { return .unknown }
+        // The decoded fragment: `url.fragment` keeps percent escapes ("%20"), whose digits
+        // `normalize` would keep, turning a good code into a refused one.
+        let code = CommunityInviteCode.normalize(url.fragment(percentEncoded: false) ?? "")
+        guard CommunityInviteCode.isWellFormed(code) else { return .unknown }
+        return .joinCommunity(code: code)
+    }
+}

@@ -9,6 +9,9 @@ import SwiftUI
 
 struct AllReviewsView: View {
     let userId: UUID
+    /// Total reviews for the person (from `get_profile_stats`); the excess over the visible list is
+    /// the count of reviews written in communities the viewer is not in.
+    var totalReviewCount: Int = 0
     @State private var reviews: [Review] = []
     @State private var isLoading = true
     @State private var error: Error?
@@ -29,6 +32,9 @@ struct AllReviewsView: View {
                     error: error.localizedDescription,
                     retryAction: { Task { await loadReviews() } }
                 )
+            } else if reviews.isEmpty && otherCommunityReviewCount > 0 {
+                otherCommunityLine
+                    .padding()
             } else if reviews.isEmpty {
                 EmptyStateView(
                     icon: "star",
@@ -62,6 +68,9 @@ struct AllReviewsView: View {
                                 }
                             }
                         }
+                        if otherCommunityReviewCount > 0 {
+                            otherCommunityLine
+                        }
                     }
                     .padding()
                 }
@@ -75,6 +84,16 @@ struct AllReviewsView: View {
         .task {
             await loadReviews()
         }
+    }
+
+    private var otherCommunityReviewCount: Int {
+        max(0, totalReviewCount - reviews.count)
+    }
+
+    private var otherCommunityLine: some View {
+        Text((otherCommunityReviewCount == 1 ? "profile_more_reviews_other_communities_one" : "profile_more_reviews_other_communities_other").localized(with: otherCommunityReviewCount))
+            .font(.naarsCaption)
+            .foregroundColor(.secondary)
     }
 
     private func loadReviews() async {

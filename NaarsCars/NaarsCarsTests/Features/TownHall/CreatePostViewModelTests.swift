@@ -135,7 +135,30 @@ final class CreatePostViewModelTests: XCTestCase {
         XCTAssertNil(viewModel.selectedImage, "Selected image should be nil")
         XCTAssertNil(viewModel.imageUrl, "Image URL should be nil")
     }
+
+    // MARK: - Community (spec §3.7 nil rule)
+
+    /// Before the first membership load the stored tab value may name a community the person has
+    /// left, so the post goes out with no community; after the load it carries the settled tab.
+    func testPostCommunityId_NilUntilMembershipsLoad() async {
+        let suiteName = "CreatePostViewModelTests.\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let userId = UUID()
+        defaults.set(CommunityFixtures.communityB.uuidString, forKey: CommunityContext.tabKeyPrefix + userId.uuidString)
+
+        let service = StubCommunityService(result: .success([
+            CommunityFixtures.membership(CommunityFixtures.communityA, name: "A", isPrimary: true)
+        ]))
+        let context = CommunityContext(service: service, defaults: defaults)
+        context.restore(for: userId)
+        let viewModel = CreatePostViewModel(communityContext: context)
+
+        XCTAssertEqual(context.communityTabId, CommunityFixtures.communityB)
+        XCTAssertNil(viewModel.postCommunityId, "No community before the first membership load")
+
+        await context.refreshMemberships()
+
+        XCTAssertEqual(viewModel.postCommunityId, CommunityFixtures.communityA)
+    }
 }
-
-
-

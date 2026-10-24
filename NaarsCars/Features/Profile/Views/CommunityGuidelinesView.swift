@@ -27,7 +27,7 @@ struct CommunityGuidelinesView: View {
                 }
                 .padding(.bottom, 8)
                 
-                // The six guidelines, from the localized list shared with the acceptance screen
+                // The guidelines, from the localized list shared with the acceptance screen
                 CommunityGuidelinesList()
             }
             .padding()
@@ -96,7 +96,8 @@ struct CommunityGuideline: Identifiable {
         CommunityGuideline(number: 3, titleKey: "guidelines_3_title", bodyKey: "guidelines_3_body"),
         CommunityGuideline(number: 4, titleKey: "guidelines_4_title", bodyKey: "guidelines_4_body"),
         CommunityGuideline(number: 5, titleKey: "guidelines_5_title", bodyKey: "guidelines_5_body"),
-        CommunityGuideline(number: 6, titleKey: "guidelines_6_title", bodyKey: "guidelines_6_body")
+        CommunityGuideline(number: 6, titleKey: "guidelines_6_title", bodyKey: "guidelines_6_body"),
+        CommunityGuideline(number: 7, titleKey: "guidelines_7_title", bodyKey: "guidelines_7_body_moderation")
     ]
 }
 

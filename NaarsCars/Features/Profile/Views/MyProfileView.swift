@@ -2,7 +2,7 @@
 //  MyProfileView.swift
 //  NaarsCars
 //
-//  Current user's profile view with editing, reviews, and invite codes
+//  Current user's profile view with editing and reviews
 //
 
 import SwiftUI
@@ -19,12 +19,22 @@ struct MyProfileView: View {
     @State private var selectedPhoto: PhotosPickerItem?
     @State private var showDeleteAccountAlert = false
     @State private var showDeleteConfirmation = false
+    /// The A3 check (communities this deletion closes) starts when Delete Account is tapped, so its
+    /// result is usually ready when the first alert's Delete is; nil while it runs.
+    @State private var deletionCheckTask: Task<Void, Never>?
+    @State private var deletionCheckNames: [String]?
+    /// Set when the first alert's Delete was tapped before the check finished; the row shows the check meanwhile.
+    @State private var deleteTappedWhileCheckingAt: Date?
+    @State private var showDeleteClosesCommunitiesAlert = false
+    @State private var deletionClosedCommunityNames: [String] = []
     @State private var showDeleteError = false
     @State private var showDeleteSuccess = false
     @State private var deleteErrorMessage = ""
     @State private var showSettings = false
     @State private var badges: [LeaderboardBadge] = []
-    @State private var showPendingUsersList = false
+    /// The default community's Requests to join, opened from a `.pendingUsers` intent (platform admins).
+    /// Community routes (`.pendingMembers`, `.myCommunities`, …) open on Explore.
+    @State private var pendingMembersTarget: PendingMembersTarget?
     @State private var showAdminPanel = false
     @State private var autoOpenAdminReports = false
     @State private var toastMessage: String? = nil
@@ -67,11 +77,14 @@ struct MyProfileView: View {
                                 xp: viewModel.totalXP
                             )
                             
-                            // Admin Panel Link (below stats)
-                            if profile.isAdmin {
-                                adminPanelLink()
+                            // Admin Panel Link (below stats): platform admins only; community admins use Manage
+                            if let adminScope = AdminPanelScope.initial(
+                                isPlatformAdmin: profile.isAdmin,
+                                administered: []
+                            ) {
+                                adminPanelLink(scope: adminScope)
                             }
-                            
+
                             accountSettingsSection()
 
                             // Share App Section
@@ -184,11 +197,11 @@ struct MyProfileView: View {
             .sheet(isPresented: $showSettings) {
                 SettingsView()
             }
-            .navigationDestination(isPresented: $showPendingUsersList) {
-                PendingUsersView()
+            .navigationDestination(item: $pendingMembersTarget) { target in
+                PendingMembersView(target: target)
             }
             .navigationDestination(isPresented: $showAdminPanel) {
-                AdminPanelView(autoOpenReports: autoOpenAdminReports)
+                AdminPanelView(autoOpenReports: autoOpenAdminReports, onCommunityArchived: { toastMessage = $0 })
                     .onDisappear { autoOpenAdminReports = false }
             }
             .refreshable {
@@ -242,12 +255,27 @@ struct MyProfileView: View {
                 Text("profile_sign_out_confirmation".localized)
             }
             .alert("profile_delete_account".localized, isPresented: $showDeleteAccountAlert) {
-                Button("common_cancel".localized, role: .cancel) {}
+                Button("common_cancel".localized, role: .cancel) {
+                    cancelDeletionCheck()
+                }
                 Button("profile_delete".localized, role: .destructive) {
-                    showDeleteConfirmation = true
+                    continueDeletionAfterFirstAlert()
                 }
             } message: {
                 Text("profile_delete_warning".localized)
+            }
+            .alert("community_delete_closes_title".localized, isPresented: $showDeleteClosesCommunitiesAlert) {
+                Button("common_cancel".localized, role: .cancel) {
+                    deletionClosedCommunityNames = []
+                }
+                Button("community_delete_closes_confirm".localized, role: .destructive) {
+                    deletionClosedCommunityNames = []
+                    showDeleteConfirmation = true
+                }
+            } message: {
+                Text("community_delete_closes_message".localized(
+                    with: ListFormatter.localizedString(byJoining: deletionClosedCommunityNames)
+                ))
             }
             .alert("profile_confirm_deletion".localized, isPresented: $showDeleteConfirmation) {
                 Button("common_cancel".localized, role: .cancel) {}
@@ -439,7 +467,7 @@ struct MyProfileView: View {
         VStack(alignment: .leading, spacing: 12) {
             NavigationLink {
                 if let userId = AuthService.shared.currentUserId {
-                    AllReviewsView(userId: userId)
+                    AllReviewsView(userId: userId, totalReviewCount: viewModel.reviewCount)
                 }
             } label: {
                 HStack {
@@ -501,7 +529,7 @@ struct MyProfileView: View {
     private func deleteAccountSection() -> some View {
         VStack(alignment: .leading, spacing: 12) {
             Button(action: {
-                showDeleteAccountAlert = true
+                startDeletionFlow()
             }) {
                 HStack {
                     Image(systemName: "trash.fill")
@@ -516,8 +544,20 @@ struct MyProfileView: View {
                 .cornerRadius(Constants.Radius.sm)
             }
             .buttonStyle(PlainButtonStyle())
-            .disabled(viewModel.isDeletingAccount)
-            
+            .disabled(viewModel.isDeletingAccount || deleteTappedWhileCheckingAt != nil)
+            .accessibilityIdentifier("profile.deleteAccount")
+
+            if deleteTappedWhileCheckingAt != nil {
+                HStack {
+                    ProgressView()
+                        .scaleEffect(0.8)
+                    Text("community_delete_checking".localized)
+                        .font(.naarsCaption)
+                        .foregroundColor(.secondary)
+                }
+                .padding(.horizontal)
+            }
+
             if viewModel.isDeletingAccount {
                 HStack {
                     ProgressView()
@@ -534,6 +574,56 @@ struct MyProfileView: View {
         .cornerRadius(Constants.Radius.card)
     }
     
+    /// Decision A3: before the final confirmation, name the communities this deletion closes.
+    /// The check runs while the first alert is up, so the next alert is normally raised from that
+    /// alert's Delete action, the same moment the final confirmation always was.
+    private func startDeletionFlow() {
+        cancelDeletionCheck()
+        showDeleteAccountAlert = true
+        deletionCheckTask = Task { @MainActor in
+            let names = await viewModel.communitiesClosedByDeletion()
+            guard !Task.isCancelled else { return }
+            deletionCheckNames = names
+            guard let tappedAt = deleteTappedWhileCheckingAt else { return }
+            // Delete was tapped before the check finished: raise the next alert only once the first
+            // one has finished going away, or SwiftUI can drop it and deletion would do nothing.
+            let remaining = Constants.Animation.long - Date().timeIntervalSince(tappedAt)
+            if remaining > 0 {
+                try? await Task.sleep(for: .seconds(remaining))
+            }
+            guard !Task.isCancelled else { return }
+            deleteTappedWhileCheckingAt = nil
+            presentStepAfterFirstAlert(names)
+        }
+    }
+
+    /// The first alert's Delete. An empty list goes straight to the final confirmation, as before.
+    private func continueDeletionAfterFirstAlert() {
+        if let names = deletionCheckNames {
+            presentStepAfterFirstAlert(names)
+        } else {
+            deleteTappedWhileCheckingAt = Date()
+        }
+    }
+
+    private func presentStepAfterFirstAlert(_ names: [String]) {
+        deletionCheckTask = nil
+        deletionCheckNames = nil
+        if names.isEmpty {
+            showDeleteConfirmation = true
+        } else {
+            deletionClosedCommunityNames = names
+            showDeleteClosesCommunitiesAlert = true
+        }
+    }
+
+    private func cancelDeletionCheck() {
+        deletionCheckTask?.cancel()
+        deletionCheckTask = nil
+        deletionCheckNames = nil
+        deleteTappedWhileCheckingAt = nil
+    }
+
     private func deleteAccount() async {
         do {
             guard try await viewModel.deleteAccount() else { return }
@@ -547,8 +637,12 @@ struct MyProfileView: View {
     
     // MARK: - Admin Panel Link
     
-    private func adminPanelLink() -> some View {
-        NavigationLink(destination: AdminPanelView()) {
+    private func adminPanelLink(scope: AdminPanelScope) -> some View {
+        NavigationLink(destination: AdminPanelView(
+            scope: scope,
+            communityName: CommunityContext.shared.name(for: scope.communityId),
+            onCommunityArchived: { toastMessage = $0 }
+        )) {
             HStack {
                 Image(systemName: "shield.fill")
                     .foregroundColor(.naarsPrimary)
@@ -594,7 +688,8 @@ struct MyProfileView: View {
     private func applyProfileIntent(_ intent: NavigationIntent, proxy: ScrollViewProxy) {
         switch intent {
         case .pendingUsers:
-            showPendingUsersList = true
+            // The platform admins' route opens the default community's Requests to join.
+            pendingMembersTarget = .defaultCommunity
             navigationCoordinator.pendingIntent = nil
         case .adminPanel:
             showAdminPanel = true

@@ -2,7 +2,7 @@
 
 ## Document Information
 - **Type**: Security Requirements
-- **Last Updated**: 2026-10-05
+- **Last Updated**: 2026-10-05 (sections 2.1.1, 2.13 and 2.26.1 updated for Community Release 1 on 2026-10-22; 2.13 and 2.26.1 for the Community Release 2 server on 2026-10-22; 2.2, 2.3, 2.14, 2.26, 2.29 and 5.3 for the Release 2 gate on 2026-10-22)
 - **Status**: Live app; reflects production RLS as of 2026-10-05
 
 ---
@@ -102,6 +102,8 @@ Realistic alternatives evaluated and rejected:
 
 **The view stays as-is.** The advisor warning is a known accepted exception — record it as such, do not auto-remediate. If the underlying `profiles` schema changes (new PII columns), update the view's column list at the same time.
 
+**Which rows (multi-community, live as of 2026-10-21).** The SQL block above shows only the column list. The live view also filters rows: a signed-in caller reads the ids `public.my_visible_profile_ids()` returns, and a caller with no JWT subject (a guest) reads the active members of listed communities (`is_public`, not archived). `my_visible_profile_ids()` (SECURITY DEFINER, `search_path = ''`) returns the caller, the active members of the caller's communities, the people in the caller's conversations, the caller's review counterparts, and, since Community Release 1 (`20261021_0001` Block 1), **the active members of every listed, unarchived community, for every signed-in caller**, so a signed-in visitor reads the same names and photos a guest already reads (the community page shows the poster of a listed request). The same function gates `get_profile_stats`, `get_user_stats`, `get_user_badges` and `is_user_approved`. Members of private communities stay visible only to people who share a community with them (probe `listed_profiles`). The set grows with listed membership; revisit its cost for town-sized communities, and Release 2 must leave `is_test` communities out of this arm for non-members.
+
 #### 2.1.2 Common policy patterns
 
 Three idioms recur across most tables. Documented here once instead of repeated in every section:
@@ -128,9 +130,13 @@ Rides are visible to authenticated users (with hide-state filter) and to anon gu
 
 > The two UPDATE policies that overlap (`Users can update own or claimed rides` and `Users can update their own rides`) are a known minor cleanup target — both are PERMISSIVE so they OR together; effective permission is the broader `auth.uid() = user_id OR auth.uid() = claimed_by`. Removing the narrower one is a low-risk follow-up.
 
+**Live SELECT policies (read 2026-10-22).** The table above is the pre-community summary. `Authenticated users can view visible or own hidden rides` reads: the caller's own rows, or visible rows (`hidden_at IS NULL`) of a community in `my_community_ids()` when `is_active_user(auth.uid())`. `Guests can view visible rides` is `false` for `anon`: guests read `guest_rides` (listed, unarchived, non-test communities; addresses blanked; `is_example` is the last column). `guard_request_client_update` (2026-10-06) still limits a non-poster's direct UPDATE to claim, unclaim or complete.
+
+**Example requests (Community Release 2, `20261021_0020`, `0023`).** `rides.is_example` (boolean, not null, default false) is reserved for server code. The `guard_example_content` trigger (BEFORE INSERT and UPDATE, invoker rights) refuses a client write that sets or changes `is_example` with 42501 `example_flag_reserved`, and refuses a claim of an example request (open → confirmed with a helper) with 42501 `example_request`; the poster may still edit other columns. Only SECURITY DEFINER code writes the flag: the data script run as the table owner, `set_example_content(type, id, flag)` (platform admins only) and the daily `refresh_example_requests()` (cron `refresh-example-requests`, 11:10 UTC, service_role), which moves an example's date into the coming week on its weekday and reopens one that was completed, with no helper. Example rows write no bell row, push or XP, and `expire_past_open_requests()` skips them. The client also refuses the claim before calling (`ClaimViewModel`), and maps the server refusal through `ClaimService.isExampleRefusal(_:)`. Probes `example_guard`, `example_content`.
+
 ### 2.3 favors
 
-Mirror of `rides`. Same 8 policies with names substituting `favors`/`favor_status` where applicable.
+Mirror of `rides`. Same 8 policies with names substituting `favors`/`favor_status` where applicable. The live SELECT policies, the guest view (`guest_favors`) and the example rules of §2.2 (`favors.is_example`, `example_flag_reserved`, `example_request`) apply in the same way.
 
 | Policy | Op | Roles | USING / CHECK |
 |---|---|---|---|
@@ -250,6 +256,8 @@ Despite its name, `notifications_insert_service_only` is a self-only check, not 
 
 ### 2.11 invite_codes
 
+**Status (2026-10-19):** since Phase 5a no client code reads or writes this table; community invites (`community_invites` and the community RPCs) are the only codes. File C (`20261019_0061`) dropped the table on 2026-10-20: the owner ran it in the SQL editor after confirming from App Store Connect that no pre-community build remains in use. The table, its policies, `validate_invite_code()` and `mark_invite_code_used()` no longer exist, and `delete_user_account()` no longer references the table. The policies below are kept as a record of the retired table.
+
 The redemption flow has a non-obvious split: the `invite_codes_update_mark_as_used` policy lets *any* authenticated user transition an unused code to "used by self" — that's how strangers redeem the code they were given. There is a row-level UPDATE on the lookup, not an INSERT into a redemptions table.
 
 | Policy | Op | Roles | USING / CHECK |
@@ -276,8 +284,10 @@ Owner-only on every operation.
 | Policy | Op | Roles | USING / CHECK |
 |---|---|---|---|
 | `Approved users can view reviews` | SELECT | (all) | caller is approved |
-| `reviews_select_anon_guest` | SELECT | anon | `true` (guest browseable) |
+| `reviews_select_anon_guest` | SELECT | anon | `true` (guest browseable; see the live policy text below for the signed-in policy widened on 2026-10-21) |
 | `reviews_insert_active_user` | INSERT | (all) | CHECK `auth.uid() = reviewer_id AND is_active_user(auth.uid())` |
+
+**Live policy text (2026-10-21).** The table above is the pre-community summary. `Approved users can view reviews` reads: the caller is approved, and the caller is the reviewer or the fulfiller, or the review's ride or favor is readable to the caller (the `rides` / `favors` SELECT policies), or `public.is_listed_request(ride_id, favor_id)`. The last arm was added by Community Release 1 (`20261021_0001` Block 3): `is_listed_request` (SECURITY DEFINER, `search_path = ''`, stable) is true when the ride or favor exists, is not hidden, and belongs to a listed, unarchived community, so a signed-in visitor reads the reviews of a listed community's requests, as a guest already does; it does not make the request row itself readable. Release 2 (`20261021_0020` Block 11, applied 2026-10-22) widened this for Get started visitors: the policy keeps the old expression as its first arm and adds ` OR (auth.uid() IS NOT NULL AND is_listed_request(ride_id, favor_id))`, so a signed-in account with no membership and no approval reads the reviews of a listed, unarchived community's visible requests. An `is_test` community is not listed for this purpose (`is_listed_request` excludes it). `reviews_select_anon_guest` reads `EXISTS` in `guest_rides` or `guest_favors` (the listed, visible requests), not `true`.
 
 ### 2.14 town_hall_posts
 
@@ -286,7 +296,9 @@ Owner-only on every operation.
 | `Authenticated users can view visible or own hidden town hall posts` | SELECT | authenticated | `(hidden_at IS NULL AND caller is approved) OR user_id = auth.uid()` |
 | `Guests can view visible town hall posts` | SELECT | anon | `hidden_at IS NULL` |
 | `town_hall_posts_insert_active_user` | INSERT | (all) | CHECK `auth.uid() = user_id AND is_active_user(auth.uid())` |
-| `Users or admins can delete posts` | DELETE | (all) | `auth.uid() = user_id OR caller is admin` |
+| `Users or admins can delete posts` | DELETE | (all) | `auth.uid() = user_id OR caller is a platform admin OR the post's community is in my_admin_community_ids()` (Phase 3, `20261018_0001`) |
+
+**Live SELECT policies (read 2026-10-22).** Authenticated: the caller's own posts, or visible posts of a community in `my_community_ids()` when the caller is approved. Guests (`anon`): visible posts of a listed, unarchived community that is **not `is_test`** (`20261021_0020`), so a test community's posts never reach a guest. `town_hall_posts.is_example` and `system_event` are reserved for server code by `guard_example_content` (42501 `example_flag_reserved`); `system_event` accepts only `community_merged`, written by `post_community_announcement` for the "Communities merged" announcement. A merge (`merge_communities`, `20261022_0002`) hides the moved posts and comments of a person who was removed from the survivor (`hidden_reason` "Moved in a merge into a community you were removed from"); the author still reads them, and only SQL restores them.
 
 ### 2.15 town_hall_comments
 
@@ -390,6 +402,8 @@ Scheduled reminders to ride/favor claimers asking them to mark a request complet
 
 ### 2.24 geocoding_cache
 
+**Update (2026-10-19):** the live policies read `is_active_user` in all three operations (the table below says `true`, which is out of date). Since Phase 5a the client reads and writes only through `get_geocoding_multiplier(text)` and `put_geocoding_multiplier(text, numeric, numeric, numeric)` (`20261019_0050`, applied): SECURITY DEFINER, `search_path=""`, an active account is required, the key, the coordinates and the multiplier range (0.9-1.5) are validated, and only the multiplier is returned or stored; no placemark data is written. File D (`20261019_0062`, applied 2026-10-20) revoked direct table access from `anon` and `authenticated`: the three policies below can no longer be reached from a client role, and only the two definer functions touch the table.
+
 Shared cache of address-to-coordinates lookups. Any authenticated user can read or write any row — there's no per-user ownership and no row-level filtering. The cache key is the (address, region) tuple; collisions overwrite.
 
 This is a deliberate trade: cache hit-rate matters more than per-user isolation, the cached values are coarse-grained (lat/lng + display address) and not sensitive, and the alternative (per-user caches) would multiply Google Places API spend. If the data ever becomes sensitive (PII in addresses, per-user prefix searches), this needs revisiting.
@@ -399,6 +413,13 @@ This is a deliberate trade: cache hit-rate matters more than per-user isolation,
 | `geocoding_cache_select_authenticated` | SELECT | authenticated | `true` |
 | `geocoding_cache_insert_authenticated` | INSERT | authenticated | CHECK `true` |
 | `geocoding_cache_update_authenticated` | UPDATE | authenticated | `true` |
+
+### 2.28 Storage buckets
+
+State read on 2026-10-19: six buckets, all public (`message-images`, `group-images`, `town-hall-images`, `review-images`, `audio-messages`, `avatars`), each with public SELECT policies on `storage.objects`; INSERT, UPDATE and DELETE policies are separate and unchanged by Phase 5.
+
+- **Phase 5a (applied in the client):** the app reads the four image buckets and `audio-messages` through signed URLs (`StorageURLSigner`), with a 1-hour lifetime and an in-memory cache only. A signed URL is never stored in the database, SwiftData, a disk-cache file name or `URLCache`, and is never logged. Avatars stay public. Stored values are unchanged (the plain public URL the upload returned).
+- **Phase 5b File E (`20261019_0063`, applied 2026-10-20; the bucket flips and the five new policies through the MCP, the nine `drop policy` statements by the owner in the SQL editor):** the five buckets are private, the old public SELECT policies are dropped, and the public route answers 400. Who can read an object: `message-images`, `group-images` and `audio-messages`, the uploader or a participant of the conversation in the path (including one who left, within their window); `town-hall-images` and `review-images`, the uploader or anyone, guests included, who can read a post or review that names the object (the post's and review's own policies decide). Owners read their own uploads. The gate (no pre-community build in use, and every build in use contains the Phase 5a client, since without it those photos stop loading) was confirmed by the owner from App Store Connect on 2026-10-20.
 
 ### 2.25 xp_events
 
@@ -437,6 +458,40 @@ RLS does not cover `/rest/v1/rpc`: any function with EXECUTE granted to `anon` o
 
 New RPCs must follow the same rule: grant EXECUTE only to the roles that need it, and verify `auth.uid()` inside any function that acts on behalf of a user.
 
+**Community RPCs added by Release 2 and who may call them.** Each answers `{success: false, error, code}` on a refusal; the client throws `CommunityRPCError`.
+
+| Function | Who may call it | What it checks |
+|---|---|---|
+| `search_communities_by_name(p_query)` | anyone (anon included) | 2 to 60 characters used, `%` and `_` literal; listed, unarchived, non-test communities (a test community only for its members and platform admins, `can_discover_community`); at most 20 rows, a name that starts with the query first |
+| `find_communities_near(p_lat, p_lng)` | anyone (anon included) | a valid point (else `invalid_area`); communities whose area circle holds it, same visibility; at most 20 rows, nearest first |
+| `get_community_preview(p_community_id)` | anyone (anon included) | listed, unarchived, non-test (or the caller's test community); no address columns; a merged community answers `merged` with the survivor's id and name only when the caller could discover the survivor (listed, or a test community of the caller's), otherwise `not_listed` |
+| `check_community_area(lat, lng, radius, p_community_id)` | signed-in accounts | a valid area; returns the overlapping listed communities, never the default community or `p_community_id` |
+| `create_community_with_area(…)` | signed-in accounts | the Phase 2 creation limits (one a day, owned limit); `open` refused; a listed draft needs a town or ZIP area (a house number is `invalid_area`); an overlap needs a reason (at most 300 characters); writes a `created_listed` listing event and tells platform admins |
+| `update_community_access(…)` | the community's **owner** only (`not_owner` for admins and others) | same area and reason rules; the default community stays listed; members are told of a change, platform admins of a listing |
+| `set_community_public(id, bool)` | platform admins | listing needs an area (`needs_area`) |
+| `get_platform_communities()` | platform admins | areas, `is_test`, merges, listing reasons, proposals |
+| `search_merge_targets(community, query)` | the community's owner | listed communities by part of the name; a hidden one only by its exact name, without its area; never the default community or the caller's own |
+| `propose_community_merge(community, other, survivor, note)` | the community's owner | one pending proposal per community; refused after a decline (7 days) or a withdrawal (24 hours) between the pair, past 3 proposals per community per 24 hours, with a block between the proposer and an owner of the other side, or with the default community |
+| `get_community_merge_proposal(community)` | owners of either side, platform admins | an expired proposal is not shown |
+| `respond_to_community_merge(proposal, accept)` | an owner of the receiving community | a closed, expired or archived-side proposal answers `proposal_closed`; accept runs `merge_communities` (internal) |
+| `withdraw_community_merge(proposal)` | an owner of either side | only a pending proposal |
+| `get_my_community_merges()` | signed-in accounts | merges of communities the caller was an active member of |
+| `archive_community(id)` | the community's owner | (`20261022_0001`) |
+| `unarchive_community(id)` | platform admins | a merged community cannot be restored |
+| `set_example_content(type, id, flag)` | platform admins (checked inside) | `ride`, `favor` or `town_hall_post` |
+
+**Community Release 1 (`20261021_0001`, applied 2026-10-21).** Two new functions, both with EXECUTE for `anon`, `authenticated` and `service_role` and none for PUBLIC:
+
+- `public.get_community_preview(p_community_id uuid) → jsonb` (SECURITY DEFINER, stable, `search_path = ''`) is the only way a visitor (a guest or a signed-in non-member) reads a community. It answers only for a listed (`is_public`), unarchived community and otherwise returns `{"success": false, "code": "not_listed"}` (also for a null or unknown id, and for a private community even to its own members). It returns the community's public fields (name, description, join policy, member count, time zone), at most 10 open, unclaimed, visible requests dated today or later (type, title, date, time, seats, poster id, name and avatar), and at most 5 recent visible posts (content cut to 280 characters, comment count). No pickup, destination, location, notes, description of a request, gift, flight or cost key is returned. Banned posters are left out, and for a signed-in caller so is anyone the caller blocked or who blocked the caller. Probe `community_preview`.
+- `public.is_listed_request(p_ride_id uuid, p_favor_id uuid) → boolean` (SECURITY DEFINER, stable, `search_path = ''`) is the predicate of the reviews arm in §2.13. It is anon-callable because the policy is `TO public`; it reveals only what a guest can already derive from `guest_rides` / `guest_favors`.
+
+**Community Release 2 (`20261021_0020`-`0023`, `20261022_0001`, `20261022_0002`, applied 2026-10-22).** EXECUTE matrix, read live (anon / authenticated / service_role; PUBLIC has none on any of these):
+
+- **Anon allow-list (callable by guests):** `search_communities_by_name(text)`, `find_communities_near(double precision, double precision)` and `get_community_preview(uuid)` (all three answer listed, unarchived, non-test communities only, with no address), plus the RLS helper predicates the guest views and policies evaluate as `anon`: `my_visible_profile_ids()` and `is_listed_request(uuid, uuid)`. Nothing else new is anon-callable.
+- **Authenticated and service_role, no anon:** `check_community_area`, `create_community_with_area`, `update_community_access`, `set_community_public`, `get_platform_communities`, `search_merge_targets`, `propose_community_merge`, `get_community_merge_proposal`, `respond_to_community_merge`, `withdraw_community_merge`, `get_my_community_merges`, `unarchive_community`, `send_community_broadcast`, `archive_community` and `set_example_content` (the last refuses everyone but a platform admin inside the function). Each acts on `auth.uid()` and checks the caller's role itself.
+- **service_role only (internal):** `great_circle_miles`, `can_discover_community`, `overlapping_listed_communities`, `guard_example_content`, `post_community_announcement`, `merge_communities`, `refresh_example_requests`, and the re-created `notify_new_ride`, `notify_new_favor`, `notify_town_hall_post`, `record_xp_on_request_created` and `expire_past_open_requests`.
+- `create_community(text, text, text, text)` is unchanged and stays for Release 1 builds. The two new tables (`community_listing_events`, `community_merge_proposals`) have RLS on and no policy: only the SECURITY DEFINER functions touch them. Communities flagged `is_test` are invisible to everyone but their members and platform admins in the community policies, the guest views, `public_profiles`, `my_visible_profile_ids()` and `get_community_preview`. The `guard_example_content` trigger refuses a client write of `is_example` or `system_event`, and a claim of an example request is refused with 42501 `example_request`.
+
 ### 2.27 content_moderation_events (audit log)
 
 Append-only audit log of moderation actions: which content (`message`, `town_hall_post`, `town_hall_comment`, `ride`, `favor`) was hidden / dismissed / restored / auto-hidden, by which admin, with what reason, linked to which report. Created by `supabase/migrations/20260403_0011_content_moderation_redesign.sql`. RLS enabled and a single admin-only SELECT policy added in `supabase/migrations/20260502_0001_enable_rls_content_moderation_events.sql` (audit ref: Supabase advisor `rls_disabled_in_public`).
@@ -458,6 +513,17 @@ USING (is_admin_user(auth.uid()));
 **UPDATE/DELETE:** blocked by the `content_moderation_events_append_only` trigger from `20260403_0011`, which raises an exception. The trigger catches row-level mutations; RLS adds belt-and-braces denial.
 
 **Pre-fix exposure (now closed):** before `20260502_0001` enabled RLS, anon/authenticated callers with the publishable anon key could `SELECT *` (see who hid what), and could `INSERT` arbitrary rows (planting fake `auto_hide` events into the audit trail).
+
+### 2.29 communities and the community tables (Community Release 2)
+
+| Policy | Op | Roles | USING |
+|---|---|---|---|
+| `communities_select_anon` | SELECT | anon | `is_public AND NOT is_test AND archived_at IS NULL` |
+| `communities_select_authenticated` | SELECT | authenticated | `archived_at IS NULL AND ((is_public AND NOT is_test) OR id in my_community_ids() OR id in my_admin_community_ids() OR the caller has a pending row)`; `my_admin_community_ids()` holds every community for a platform admin |
+
+- **Area columns** (`area_name`, `area_center_lat`, `area_center_lng`, `area_radius_miles`) are readable with the row and are a town or ZIP code centre, never an address; CHECKs require all four or none, a radius of 1, 2, 5 or 10 miles, a centre within ±90 / ±180 and a name of 2 to 80 characters after trimming (the RPCs also refuse a house number, `invalid_area`), and `communities_hidden_not_open` keeps a hidden community from being `open`. `is_test`, `merged_into_id` and `merged_at` are set only by SECURITY DEFINER code or SQL; no client writes `communities` directly (§2.26).
+- **`community_listing_events`** (who listed a community, its area, the overlapping communities and the reason) and **`community_merge_proposals`** have RLS on, **no policy and no grant** to `anon` or `authenticated`: a direct read raises 42501. Only the SECURITY DEFINER RPCs of §2.26 read or write them; platform admins see them through `get_platform_communities()`. Two partial unique indexes allow one pending proposal per community on either side.
+- `is_test` communities (the four owner test communities) are left out of the policies above, the guest views, `public_profiles`, `my_visible_profile_ids()`, `is_listed_request()` and the search and preview RPCs, except for their members and platform admins (probe `test_flag_visibility`).
 
 ---
 
@@ -537,6 +603,12 @@ Admin operations are protected at three layers:
 | Client UI | UX convenience | Memory editing, direct navigation |
 | Client verification | Defense in depth | Skilled attacker with modified client |
 | Server RLS | Actual security | Nothing (if properly configured) |
+
+### 4.1a Two admin notions
+
+- **Platform admin:** `profiles.is_admin`, checked on the client by `verifyAdminStatus` and on the server by the admin RPCs.
+- **Community admin:** the member's role in that community, checked inside each community RPC (the client never decides it). Community admins never see an applicant's email or phone, or who filed a report. They see the reports filed in their community (without the reporter) and can hide, restore or dismiss content there through `get_community_reports` / `moderate_community_content`. Staff matters (a report about an owner or admin of the community), message reports and community reports stay with platform admins. Platform moderation wins: a community decision is recorded in `reports.community_status` / `community_reviewed_at`, never in `status` / `reviewed_*`, so every report stays in the platform queue; a community admin cannot undo a platform decision or the 3-reporter auto-hide, or act on a report a platform admin reviewed. SEC-ADMIN-001 below covers platform operations only.
+- Only the user can delete an account, plus, for a default-community applicant with no other membership, a platform admin (INV-M9).
 
 ### 4.2 AdminService Implementation
 
@@ -657,6 +729,10 @@ For production deployment, implement server-side rate limiting via Supabase Edge
 | Login failures | 5 | 15 minutes | Supabase Auth config |
 | Password reset | 3 | 1 hour | Edge Function |
 | Invite generation | 5 | 24 hours | Database trigger |
+| Announcements | 3 per community | 24 hours | `send_community_broadcast` (platform admins included since `20261018_0002`; counts only announcements by platform admins and community staff) |
+| Community search | 20 rows per answer | per call | `search_communities_by_name`, `find_communities_near` (Release 2); queries under 2 characters answer no row, only the first 60 are used |
+| Merge proposals | one pending per community; 3 per community | 24 hours | `propose_community_merge`: a decline blocks the pair for 7 days, a withdrawal for 24 hours (`recently_declined`), the fourth in a day is `rate_limited`; a proposal expires after 7 days |
+| Community creation | 1 per account; 3 owned (raise on request) | 24 hours | unchanged by Release 2 (`create_community_with_area` applies the same limits as `create_community`) |
 
 ### 5.4 Implementation Priority
 
@@ -667,6 +743,8 @@ For production deployment, implement server-side rate limiting via Supabase Edge
 ---
 
 ## 6. Invite Code Security
+
+**Legacy codes retired (Phase 5a, 2026-10-19):** the `NC` + 8 character codes below were the single-use invite codes of the old sign-up flow. No client code generates, validates or redeems them any more, and File C (`20261019_0061`, applied 2026-10-20) dropped the table. Community invites are the only codes. The generator shown below was deleted with the client code and is kept as a record of the format.
 
 ### 6.1 Code Format
 
@@ -689,6 +767,13 @@ enum InviteCodeGenerator {
     }
 }
 ```
+
+### 6.1a Invite Links (Phase 4)
+
+- A join link is `https://naarscars.com/join#<code>`. The code is in the URL fragment only, so it is not sent to the web server, not put in a Referer, and not written to server logs.
+- The app saves a received code on the device (`PendingInviteStore`, in the app's own storage) until it is redeemed or 7 days pass, then discards it. It is never logged.
+- The landing page loads no third-party script and sends `Referrer-Policy: no-referrer`.
+- Entitlement: Associated Domains, `applinks:naarscars.com` only (not `www`). The `apple-app-site-association` file lists the paths `/join` and `/join/`.
 
 ### 6.2 Brute Force Protection
 

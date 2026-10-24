@@ -1,0 +1,16 @@
+{
+  "applinks": {
+    "apps": [],
+    "details": [
+      {
+        "appID": "WT4DGUYKL4.com.NaarsCars",
+        "appIDs": ["WT4DGUYKL4.com.NaarsCars"],
+        "paths": ["/join", "/join/"],
+        "components": [
+          { "/": "/join", "comment": "https://naarscars.com/join#<code>; the code is in the fragment" },
+          { "/": "/join/" }
+        ]
+      }
+    ]
+  }
+}

@@ -13,9 +13,22 @@ import Observation
 @Observable
 final class NotificationNavigationRouter {
     private let authService: AuthService
+    /// Decides which list a `content_reported` row opens: a platform admin's bell row carries a
+    /// derived community too, and keeps the platform reports list.
+    private let isPlatformAdmin: @MainActor () -> Bool
+    /// Decides which screen a `membership_update` row opens: the community's members for an owner
+    /// or admin of it (an ownership row, read after the push refreshed the memberships), else My
+    /// communities. Rows carry no `membership_event`, so the current role stands in for it.
+    private let isAdminOf: @MainActor (UUID) -> Bool
 
-    init(authService: AuthService = .shared) {
+    init(
+        authService: AuthService = .shared,
+        isPlatformAdmin: @escaping @MainActor () -> Bool = { AuthService.shared.currentProfile?.isAdmin == true },
+        isAdminOf: @escaping @MainActor (UUID) -> Bool = { CommunityContext.shared.isAdmin(of: $0) }
+    ) {
         self.authService = authService
+        self.isPlatformAdmin = isPlatformAdmin
+        self.isAdminOf = isAdminOf
     }
 
     func handleNotificationTap(
@@ -77,7 +90,7 @@ final class NotificationNavigationRouter {
         }
         // The broadcast has a linked town hall post: navigate there instead
         AppLogger.info("notifications", "[NotificationNavigationRouter] Broadcast tapped with town hall post: \(postId); deferring intent")
-        NavigationCoordinator.shared.deferNotificationIntent(.openTownHallPost(postId: postId, mode: .highlightPost))
+        NavigationCoordinator.shared.deferNotificationIntent(.openTownHallPost(postId: postId, mode: .highlightPost, communityId: notification.communityId))
         NotificationCenter.default.post(name: .dismissNotificationsSurface, object: nil)
         return false
     }
@@ -122,12 +135,22 @@ final class NotificationNavigationRouter {
         case .message, .addedToConversation:
             return notification.conversationId.map { .openConversation(conversationId: $0, scrollTarget: nil) }
         case .townHallPost:
-            return notification.townHallPostId.map { .openTownHallPost(postId: $0, mode: .openComments) }
+            return notification.townHallPostId.map { .openTownHallPost(postId: $0, mode: .openComments, communityId: notification.communityId) }
         case .townHallComment, .townHallReaction:
-            return notification.townHallPostId.map { .openTownHallPost(postId: $0, mode: .highlightPost) }
+            return notification.townHallPostId.map { .openTownHallPost(postId: $0, mode: .highlightPost, communityId: notification.communityId) }
         case .pendingApproval:
+            // A community's applicant (row carries `community_id`) opens that community's
+            // Requests to join; a legacy row without one keeps the platform route.
+            if let communityId = notification.communityId {
+                return .openPendingMembers(communityId: communityId)
+            }
             return .openPendingUsers
         case .contentReported:
+            // A community owner's or admin's row (carries `community_id`) opens that community's
+            // reports; a platform admin's, or a row with no community, the platform list.
+            if !isPlatformAdmin(), let communityId = notification.communityId {
+                return .openCommunityReports(communityId: communityId)
+            }
             return .openAdminReports
         case .contentHidden:
             if let conversationId = notification.conversationId {
@@ -140,7 +163,7 @@ final class NotificationNavigationRouter {
                 return .openFavor(favorId: favorId, anchor: nil)
             }
             if let postId = notification.townHallPostId {
-                return .openTownHallPost(postId: postId, mode: .highlightPost)
+                return .openTownHallPost(postId: postId, mode: .highlightPost, communityId: notification.communityId)
             }
             return .openDashboard
         case .review:
@@ -155,6 +178,17 @@ final class NotificationNavigationRouter {
             return .openDashboard
         case .userRejected:
             return nil
+        case .accountRestricted:
+            // Removed from a community: My communities (onboarding follows the membership
+            // refresh when it was the last one).
+            return .openMyCommunities
+        case .membershipUpdate:
+            // Made an owner (the person now administers the row's community): its members.
+            // Approved into a further community, or no community on the row: My communities.
+            if let communityId = notification.communityId, isAdminOf(communityId) {
+                return .openCommunityMembers(communityId: communityId)
+            }
+            return .openMyCommunities
         case .adminAnnouncement, .announcement, .broadcast:
             return nil
         case .other:
